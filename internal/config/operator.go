@@ -8,9 +8,8 @@ import (
 	"path/filepath"
 )
 
-// These trust anchors are set only by an operator build (-ldflags -X). There is
-// deliberately no CLI, environment, home-directory or working-directory fallback.
-// An unprovisioned binary can show help/version, but cannot execute tool requests.
+// Operator builds supply the default configuration path and digests.
+// Explicit --config selects caller-trusted configuration instead.
 var pinnedPath string
 var pinnedSHA256 string
 var pinnedBinarySHA256 string
@@ -22,7 +21,7 @@ func loadPinned(path, digest, binaryDigest string) (Config, error) {
 	want, err := hex.DecodeString(digest)
 	binaryHash, binaryErr := hex.DecodeString(binaryDigest)
 	if !filepath.IsAbs(path) || err != nil || len(want) != sha256.Size || binaryErr != nil || len(binaryHash) != sha256.Size {
-		return c, errors.New("operator build required. Run scripts/provision")
+		return c, errors.New("configuration required. Use --config FILE or run scripts/provision")
 	}
 	b, err := ReadFile(path)
 	if err != nil {

@@ -1,5 +1,7 @@
 # Command examples
 
+Add `--config /etc/toolbox/toolbox.json` to each CLI command below, or use an operator-built default. Configure the same file in your [MCP client](clients.md).
+
 Use the `toolbox` executable with an approved `apps-reader` context. Outputs below are illustrative. Replace `apps`, `api`, `api-0`, and `app` with your namespace, deployment, pod, and container names.
 
 Examples 4–6 show `tools/call` requests after session initialization. Use a configured [MCP client](clients.md) to send them. Successful output blocks show `result.structuredContent`. The error block shows `result.content` and `result.isError`. Transport metadata is omitted.

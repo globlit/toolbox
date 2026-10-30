@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"toolbox/internal/config"
@@ -31,7 +33,7 @@ func TestCLIUsesSanitizedService(t *testing.T) {
 	for _, cmd := range [][]string{{"get", "pods", "-n", "apps"}, {"logs", "api", "--tail=10"}, {"resources"}} {
 		var out, stderr bytes.Buffer
 		args := append([]string{"kubectl"}, cmd...)
-		code := run(context.Background(), args, &out, &stderr, func() (config.Config, error) { return c, nil })
+		code := run(context.Background(), args, &out, &stderr, func(string) (config.Config, error) { return c, nil })
 		if code != 0 || !json.Valid(out.Bytes()) || strings.Contains(out.String(), "canary") {
 			t.Fatal(code, out.String(), stderr.String())
 		}
@@ -71,7 +73,7 @@ func TestContextJSONAndAllNamespaceCLI(t *testing.T) {
 		"logs api --context prod-b", "resources --context prod-a", "contexts",
 	} {
 		var out, stderr bytes.Buffer
-		code := run(context.Background(), append([]string{"kubectl"}, strings.Fields(command)...), &out, &stderr, func() (config.Config, error) { return c, nil })
+		code := run(context.Background(), append([]string{"kubectl"}, strings.Fields(command)...), &out, &stderr, func(string) (config.Config, error) { return c, nil })
 		if code != 0 || !json.Valid(out.Bytes()) || strings.Contains(out.String(), "canary") {
 			t.Fatal(command, code, out.String(), stderr.String())
 		}
@@ -93,7 +95,7 @@ func TestContextJSONAndAllNamespaceCLI(t *testing.T) {
 	}
 	for _, command := range []string{"get pods", "get pods --context unapproved", "get pods --context prod-b -n apps", "get nodes --context prod-b -A"} {
 		var out, stderr bytes.Buffer
-		code := run(context.Background(), append([]string{"kubectl"}, strings.Fields(command)...), &out, &stderr, func() (config.Config, error) { return c, nil })
+		code := run(context.Background(), append([]string{"kubectl"}, strings.Fields(command)...), &out, &stderr, func(string) (config.Config, error) { return c, nil })
 		if code == 0 || out.Len() != 0 {
 			t.Fatal("request did not fail closed", command, out.String())
 		}
@@ -101,5 +103,39 @@ func TestContextJSONAndAllNamespaceCLI(t *testing.T) {
 	r, err := parse([]string{"kubectl", "port-forward", "api", ":8080", "--context", "prod-a"})
 	if err != nil || r.forward.Context != "prod-a" {
 		t.Fatal(r, err)
+	}
+}
+
+func TestExplicitConfigCLI(t *testing.T) {
+	c := testutil.MultiContextConfig(t)
+	path := filepath.Join(t.TempDir(), "caller config.json")
+	b, _ := json.Marshal(c)
+	if err := os.WriteFile(path, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"--config", path, "kubectl", "get", "pods", "--context", "prod-a", "-A", "-o", "json"},
+		{"kubectl", "--config=" + path, "get", "pods", "--context", "prod-b"},
+		{"kubectl", "get", "pods", "--context", "prod-b", "--config", path},
+		{"kubectl", "logs", "api", "--context", "prod-a", "--config", path},
+	} {
+		var out, stderr bytes.Buffer
+		if code := Run(context.Background(), args, &out, &stderr); code != 0 || !json.Valid(out.Bytes()) || strings.Contains(out.String(), "canary") {
+			t.Fatal(args, code, out.String(), stderr.String())
+		}
+	}
+	for _, args := range [][]string{
+		{"kubectl", "get", "secrets", "--context", "prod-a"},
+		{"kubectl", "get", "pods", "--context", "unapproved"},
+		{"kubectl", "get", "pods", "--context", "prod-b", "-n", "apps"},
+		{"kubectl", "get", "pods", "--context", "prod-a", "--watch"},
+		{"kubectl", "delete", "pods", "--context", "prod-a"},
+		{"kubectl", "get", "--raw=/api/v1/namespaces/apps/pods/api/exec", "--context", "prod-a"},
+		{"kubectl", "get", "pods", "--context", "prod-a", "-o", "jsonpath=@/etc/passwd"},
+	} {
+		var out, stderr bytes.Buffer
+		if code := Run(context.Background(), append([]string{"--config", path}, args...), &out, &stderr); code == 0 || out.Len() != 0 {
+			t.Fatal("explicit config bypassed policy", args, code, out.String())
+		}
 	}
 }

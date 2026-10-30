@@ -17,7 +17,7 @@ import (
 
 const Help = `toolbox 0.3.0 - Kubernetes reads and port forwarding
 
-Usage:
+Usage: toolbox [--config FILE] COMMAND
   toolbox mcp
   toolbox kubectl contexts
   toolbox kubectl resources [--context CONTEXT]
@@ -244,13 +244,47 @@ func parseForward(args []string) (request, error) {
 	return r, nil
 }
 
+func splitConfig(args []string) ([]string, string, error) {
+	clean := make([]string, 0, len(args))
+	var path string
+	seen := false
+	for i := 0; i < len(args); i++ {
+		key, value, assigned := strings.Cut(args[i], "=")
+		if key != "--config" {
+			clean = append(clean, args[i])
+			continue
+		}
+		if seen {
+			return nil, "", errors.New("duplicate config option")
+		}
+		seen = true
+		if !assigned {
+			i++
+			if i >= len(args) {
+				return nil, "", errors.New("--config requires a file path")
+			}
+			value = args[i]
+		}
+		if value == "" || strings.HasPrefix(value, "-") || strings.ContainsAny(value, "\x00\r\n") {
+			return nil, "", errors.New("invalid config file path")
+		}
+		path = value
+	}
+	return clean, path, nil
+}
+
 // Run never prints parser errors containing agent-supplied values or file contents.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	return run(ctx, args, stdout, stderr, config.LoadOperator)
+	return run(ctx, args, stdout, stderr, config.LoadRuntime)
 }
 
 // Private loader injection is used only by unit tests, not by the executable.
-func run(ctx context.Context, args []string, stdout, stderr io.Writer, load func() (config.Config, error)) int {
+func run(ctx context.Context, args []string, stdout, stderr io.Writer, load func(string) (config.Config, error)) int {
+	args, path, err := splitConfig(args)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
 	if len(args) == 0 || (len(args) == 1 && (args[0] == "--help" || args[0] == "help" || args[0] == "-h")) {
 		fmt.Fprint(stdout, Help)
 		return 0
@@ -264,7 +298,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, load func
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
-	c, err := load()
+	c, err := load(path)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2

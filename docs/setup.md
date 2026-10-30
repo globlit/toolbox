@@ -1,6 +1,6 @@
 # Setup
 
-Use an existing read-only kubeconfig to build a provisioned Toolbox executable. Toolbox does not create Kubernetes identities or apply permission manifests.
+Use an existing read-only kubeconfig with Toolbox. Toolbox does not create Kubernetes identities or apply permission manifests.
 
 ## Prerequisites
 
@@ -122,7 +122,7 @@ Use the [multiple-context configuration](../config/toolbox.multicontext.example.
 }
 ```
 
-Match each `name` to an existing kubeconfig context. Configure 1–100 contexts with 1–100 unique namespaces each. Rebuild after editing the configuration.
+Match each `name` to an existing kubeconfig context. Configure 1–100 contexts with 1–100 unique namespaces each. With `--config`, new CLI invocations read configuration edits. Restart MCP to load edits.
 
 ```sh
 toolbox kubectl contexts
@@ -137,6 +137,8 @@ For MCP, call `kubectl_contexts` to list approved contexts. Select a context in 
 {"name":"kubectl_get","arguments":{"context":"prod-a","resource":"pods","all_namespaces":true}}
 ```
 
+Read [context selection and query examples](contexts.md) for catalog output, per-request selection, and cross-context queries.
+
 Multiple configured contexts require explicit selection. One configured context remains the default. Requests do not change kubeconfig or a shared active context. Results identify the selected context. Tunnel status remains tied to its creation context.
 
 `-A` / `--all-namespaces` combines lists from approved namespaces in the selected context. Results report those namespaces. It rejects `-n`, object names, and cluster-scoped resources. A failed or incomplete namespace read discards the combined data. The request shares one timeout and output budget across namespaces.
@@ -145,35 +147,55 @@ Multiple configured contexts require explicit selection. One configured context 
 
 ## 4. Build and verify
 
-Create the output directory with operator-controlled permissions. Run this command from the source checkout:
+Create the output directory, then build from this checkout:
+
+```sh
+go build -o /opt/toolbox/bin/toolbox ./cmd/toolbox
+/opt/toolbox/bin/toolbox --config /etc/toolbox/toolbox.json kubectl get pods -n apps
+```
+
+A successful read returns JSON with `context`, `data`, `redactions`, and `untrusted`. An empty namespace returns an empty `items` array. For multiple contexts, add `--context NAME`. If the command fails, check file access, credentials, certificate trust, and resource permissions.
+
+Register the executable using [client configuration](clients.md).
+
+### Runtime configuration
+
+Supply `--config FILE` or `--config=FILE` before or after the command:
+
+```sh
+toolbox --config /etc/toolbox/toolbox.json kubectl contexts
+toolbox kubectl get pods --context prod-a -A -o json --config=./toolbox.json
+toolbox mcp --config /etc/toolbox/toolbox.json
+```
+
+Absolute and relative configuration paths are accepted. Relative paths resolve from the process's working directory. Paths inside the JSON for `binary` and `kubeconfig` must remain absolute. Use an absolute `--config` path in MCP client registration.
+
+Toolbox accepts any valid local configuration supplied by the caller. No operator build or configuration digest is required for `--config`. The file selects the executable, credentials, approved contexts, namespace lists, and optional tunnel permissions. Trust the caller and configuration author. Built-in command restrictions and mandatory sanitization still apply.
+
+The MCP server loads configuration at startup. Individual MCP calls cannot supply `config`, a kubeconfig path, or executable overrides. Restart the server after editing its configuration. `KUBECONFIG`, `TOOLBOX_CONFIG`, and `TOOLBOX_CONFIG_PATH` do not select configuration.
+
+### Optional built-in default
+
+Build a default configuration into the executable to omit `--config`:
 
 ```sh
 go run ./scripts/provision -config /etc/toolbox/toolbox.json -out /opt/toolbox/bin/toolbox
-```
-
-Expected output:
-
-```text
-Gateway build succeeded.
-```
-
-The build records the approved configuration path and SHA-256 digests. It does not test cluster connectivity. Verify a permitted read:
-
-```sh
 /opt/toolbox/bin/toolbox kubectl get pods -n apps
 ```
 
-Expect a JSON result with `data`, `redactions`, and `untrusted`. An empty namespace returns an empty `items` array. If the command fails, check the selected context, file access, credential validity, certificate trust, and resource permission. `toolbox kubectl resources` lists Toolbox's catalog without checking cluster permissions.
+Successful provisioning prints `Gateway build succeeded.` The default loader verifies the configuration and kubectl digests recorded during provisioning. Rebuild when those files change. Explicit `--config` takes precedence over this default and bypasses its recorded digests. It hashes the selected executable at startup and checks that digest before each subprocess launch.
 
-Register the executable using [client configuration](clients.md). Protect the executable and its parent directories from agent modification. Apply the same protection to kubectl, configuration, and credentials. Use separate operating-system isolation if the agent must not read credentials or contact Kubernetes directly.
+An ordinary build without `--config` fails with `configuration required. Use --config FILE or run scripts/provision`. Neither build mode proves cluster connectivity or prevents a trusted caller from selecting a different configuration.
+
+Protect credentials from direct agent access. If the configuration author must be separate from the agent, enforce a fixed invocation outside Toolbox. Read the [security model](security.md#configuration-trust).
 
 ## Windows
 
 Use the [Windows configuration example](../config/toolbox.windows.example.json). Replace the example context and namespace list. Create the output directory before running this PowerShell command:
 
 ```powershell
-go run ./scripts/provision -config "C:\ProgramData\toolbox\toolbox.json" -out "C:\Program Files\Toolbox\toolbox.exe"
-& "C:\Program Files\Toolbox\toolbox.exe" kubectl get pods -n apps
+go build -o "C:\Program Files\Toolbox\toolbox.exe" ./cmd/toolbox
+& "C:\Program Files\Toolbox\toolbox.exe" --config "C:\ProgramData\toolbox\toolbox.json" kubectl get pods -n apps
 ```
 
 Provision private Windows access-control lists for credential files and temporary directories. Unix permission modes do not configure those lists.
@@ -182,8 +204,10 @@ Provision private Windows access-control lists for credential files and temporar
 
 | Update | Required action |
 | --- | --- |
-| Toolbox configuration, including paths or redaction rules | Rebuild with `scripts/provision`. Restart MCP. |
-| Approved kubectl executable | Rebuild with `scripts/provision`. Restart MCP. |
+| Configuration passed with `--config` | Restart MCP. New CLI invocations load edits automatically. |
+| Configured kubectl executable with `--config` | Restart MCP to accept the replacement. New CLI invocations hash it automatically. |
+| Built-in default configuration | Rebuild with `scripts/provision`. Restart MCP. |
+| kubectl executable used by the built-in default | Rebuild with `scripts/provision`. Restart MCP. |
 | Token or certificate contents at approved paths | Restart MCP to reload credentials. New CLI calls reload automatically. |
 | Expired token | Replace it through the operator's credential process. Toolbox cannot refresh it. |
 
@@ -191,4 +215,4 @@ If you need a new identity, review the [kubeconfig template](../config/reader.ku
 
 ## Optional tunnels
 
-Set `kubectl.allow_port_forward` to `true` to permit loopback tunnels. With `contexts`, set `allow_port_forward` on each approved context instead. Set `kubectl.port_forward_max_seconds` to the maximum lifetime. The default is 300 seconds. Rebuild the gateway after configuration edits. Read [tunnel permissions and usage](raw-and-port-forward.md).
+Set `kubectl.allow_port_forward` to `true` to permit loopback tunnels. With `contexts`, set `allow_port_forward` on each approved context instead. Set `kubectl.port_forward_max_seconds` to the maximum lifetime. The default is 300 seconds. Restart MCP after configuration edits. Rebuild only when using the built-in default. Read [tunnel permissions and usage](raw-and-port-forward.md).

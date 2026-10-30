@@ -29,9 +29,11 @@ The runner executes an absolute kubectl path without a shell. The service saniti
 
 ## Configuration
 
-The operator build records the approved configuration path and SHA-256 digests for configuration and kubectl. The runtime verifies configuration bytes before parsing them. The runner verifies kubectl before execution. An unprovisioned build rejects operational requests.
+Explicit `--config` loads caller-trusted JSON. It hashes the selected native executable at startup. The runner verifies that digest before each subprocess launch. No configuration environment fallback exists.
 
-The provisioning package is absent from the runtime dependency graph. Agent requests select only operator-approved contexts. They cannot replace configuration, credentials, or executables.
+Without `--config`, the operator build supplies a default path and SHA-256 digests for configuration and kubectl. The runtime verifies default configuration bytes before parsing them. Ordinary builds require `--config`. The provisioning package remains absent from the runtime dependency graph.
+
+MCP tool calls select configured contexts but cannot replace startup configuration, credential paths, or executables. A caller starting another process with `--config` can select a different configuration.
 
 The credential loader creates a separate static credential snapshot for every approved context. Requests select a snapshot without changing shared configuration. All contexts share the two-process limit and credential redaction rules. Each subprocess receives a private temporary kubeconfig. Toolbox writes no persistent raw-output logs. Read [security](security.md) for filesystem and process-isolation limits.
 

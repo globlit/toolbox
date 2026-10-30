@@ -10,7 +10,17 @@ Apply three controls:
 2. **Cluster permissions.** Use a dedicated read-only identity. Kubernetes role-based access control (RBAC) grants are additive. Inspect all bindings affecting that identity. The reader manifests exclude Secrets, ConfigMaps, mutation, exec, attach, proxy, port-forward, token creation, and impersonation. The separate optional tunnel role grants only `get` and `create` on `pods/portforward`. [RBAC reference](https://kubernetes.io/docs/reference/access-authn-authz/rbac/).
 3. **Credential isolation.** Run the gateway under a separate account or container if the agent must not access raw credentials or outputs. Expose a fixed invocation over standard input/output. Block direct cluster access. Same-user execution does not enforce this isolation.
 
-Protect Toolbox, kubectl, configuration, credentials, dependencies, and their parent directories from agent modification. The approved configuration path and configuration/kubectl digests are compiled into the executable. Caller flags and environment variables cannot replace them. Configuration and kubectl updates require a new operator build.
+Protect Toolbox, kubectl, configuration, credentials, dependencies, and their parent directories from unauthorized modification.
+
+## Configuration trust
+
+Explicit `--config FILE` trusts the caller and the selected configuration author. It works with ordinary and operator-built executables. The configuration selects a native executable, kubeconfig, contexts, namespace permissions, and optional tunnels. Choosing a malicious native executable can bypass Toolbox's command restrictions. Runtime hashing detects later replacement, but does not establish that the selected executable is kubectl.
+
+Without `--config`, an operator-built executable verifies its built-in default configuration and kubectl digests. Explicit `--config` overrides that default. Operator builds therefore do not prevent a caller with process-launch access from selecting different policy or credentials.
+
+For an untrusted agent, use an external launcher or service that fixes the executable and arguments, protects configuration files, and denies direct credential access. Within an existing MCP server, tool calls cannot replace startup configuration. Environment variables never select configuration.
+
+The command allowlist, raw-path validation, static-credential checks, output limits, and mandatory sanitizer remain enforced when running the intended kubectl executable. Configuration cannot enable mutation commands, exec, proxy, arbitrary flags, or unsanitized read output. Port forwarding remains an explicit exception for tunnel traffic.
 
 Toolbox assumes a trusted operating system, kubectl executable, and Kubernetes API server. API GET endpoints must obey Kubernetes read semantics. Toolbox cannot sandbox a compromised executable or malicious API extension. An agent able to replace the gateway or access privileged credentials directly can bypass this boundary.
 
@@ -30,7 +40,7 @@ The server address must be a direct HTTPS origin. System certificate trust appli
 
 Each source configuration or credential file has a 1 MiB limit. The loader snapshots all approved contexts at startup. Each request selects an approved context and its namespace restrictions. Unknown contexts fail before execution. Multiple configured contexts require explicit selection. kubectl receives a reconstructed snapshot, not the source kubeconfig. Source-file edits cannot alter an existing MCP process's credentials. Restart MCP after credential rotation. Expired credentials cause a failed request without identity fallback.
 
-Read [existing-kubeconfig setup](setup.md) for the accepted fields. Accept configuration only from a trusted operator. [Kubernetes kubeconfig guidance](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/).
+Read [existing-kubeconfig setup](setup.md) for the accepted fields. Accept configuration only from a trusted author. [Kubernetes kubeconfig guidance](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/).
 
 ## Sanitization
 

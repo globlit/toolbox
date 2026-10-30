@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestStdioEndToEnd(t *testing.T) {
 	_ = os.WriteFile(attackPath, payload, 0600)
 	for _, args := range [][]string{{"--config", attackPath, "kubectl", "get", "pods"}, {"mcp", "--config", attackPath}, {"kubectl", "get", "pods", "--config=" + attackPath}} {
 		if out, err := exec.Command(binary, args...).CombinedOutput(); err == nil {
-			t.Fatal("caller config accepted", string(out))
+			t.Fatal("non-native configured executable accepted", string(out))
 		}
 	}
 	cmd := exec.Command(binary, "kubectl", "get", "pods")
@@ -150,6 +151,17 @@ func TestStdioEndToEnd(t *testing.T) {
 
 func TestProvisionedMultipleContexts(t *testing.T) {
 	binary, _ := testutil.BuildGateway(t, testutil.MultiContextConfig(t))
+	alternate := testutil.Config(t)
+	alternatePath := filepath.Join(t.TempDir(), "alternate.json")
+	content, _ := json.Marshal(alternate)
+	if err := os.WriteFile(alternatePath, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	selected, err := exec.Command(binary, "--config", alternatePath, "kubectl", "get", "pods").CombinedOutput()
+	if err != nil || !strings.Contains(string(selected), `"context":"reader"`) {
+		t.Fatal("explicit config did not override built-in default", string(selected), err)
+	}
+
 	out, err := exec.Command(binary, "kubectl", "get", "pods", "--context", "prod-a", "-A", "-o", "json").CombinedOutput()
 	if err != nil || !strings.Contains(string(out), `"context":"prod-a"`) || !strings.Contains(string(out), `"namespaces":["apps","observability"]`) || strings.Contains(string(out), "canary") {
 		t.Fatal(string(out), err)
@@ -181,5 +193,75 @@ func TestProvisionedMultipleContexts(t *testing.T) {
 		if json.Unmarshal(encoded, &r) != nil || r.Context != name || len(r.Namespaces) == 0 || strings.Contains(string(encoded), "canary") {
 			t.Fatal(string(encoded))
 		}
+	}
+}
+
+func TestOrdinaryBuildWithExplicitConfig(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "toolbox")
+	if runtime.GOOS == "windows" {
+		binary += ".exe"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	build := exec.CommandContext(ctx, "go", "build", "-p=2", "-o", binary, ".")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatal(string(out), err)
+	}
+	c := testutil.MultiContextConfig(t)
+	path := filepath.Join(dir, "config.json")
+	b, _ := json.Marshal(c)
+	if err := os.WriteFile(path, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.CommandContext(ctx, binary, "--config", path, "kubectl", "get", "pods", "--context", "prod-b", "-A", "-o", "json").CombinedOutput()
+	if err != nil || !strings.Contains(string(out), `"context":"prod-b"`) || strings.Contains(string(out), "canary") {
+		t.Fatal(string(out), err)
+	}
+	noConfig := exec.CommandContext(ctx, binary, "kubectl", "get", "pods")
+	noConfig.Env = append(os.Environ(), "TOOLBOX_CONFIG="+path, "KUBECONFIG="+c.Kubectl.Kubeconfig)
+	if out, err := noConfig.CombinedOutput(); err == nil || !strings.Contains(string(out), "configuration required") {
+		t.Fatal("environment selected runtime config", string(out), err)
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "runtime-config-smoke", Version: "1"}, nil)
+	cs, err := client.Connect(ctx, &mcp.CommandTransport{Command: exec.Command(binary, "mcp", "--config", path)}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+	for _, tc := range []struct {
+		tool    string
+		args    map[string]any
+		failure bool
+	}{
+		{"kubectl_get", map[string]any{"context": "prod-a", "resource": "pods", "all_namespaces": true}, false},
+		{"kubectl_get", map[string]any{"context": "prod-b", "resource": "secrets"}, true},
+		{"kubectl_get", map[string]any{"context": "prod-a", "resource": "pods", "config": path}, true},
+		{"kubectl_get", map[string]any{"context": "prod-a", "resource": "pods", "method": "DELETE"}, true},
+	} {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: tc.tool, Arguments: tc.args})
+		if err != nil {
+			if tc.failure {
+				continue
+			}
+			t.Fatal(err)
+		}
+		encoded, _ := json.Marshal(result)
+		if result.IsError != tc.failure || strings.Contains(string(encoded), "canary") {
+			t.Fatal(tc, string(encoded))
+		}
+	}
+	started, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "kubectl_port_forward", Arguments: map[string]any{"context": "prod-a", "target": "api", "ports": []string{":8080"}}})
+	if err != nil || started.IsError {
+		t.Fatal(started, err)
+	}
+	b, _ = json.Marshal(started.StructuredContent)
+	var tunnel kubectl.ForwardResult
+	if json.Unmarshal(b, &tunnel) != nil || tunnel.Context != "prod-a" || tunnel.Status != "active" {
+		t.Fatal(string(b))
+	}
+	stopped, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "kubectl_port_forward_stop", Arguments: map[string]any{"id": tunnel.ID}})
+	if err != nil || stopped.IsError {
+		t.Fatal(stopped, err)
 	}
 }

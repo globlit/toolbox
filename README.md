@@ -6,36 +6,36 @@ Toolbox gives artificial intelligence (AI) agents Kubernetes reads and optional 
 
 Use Go 1.26.10 or newer to build Toolbox. Install kubectl separately.
 
-1. Follow [setup with an existing kubeconfig](docs/setup.md). Reuse the existing ServiceAccount, Role, and RoleBinding if they grant the required read-only access.
-2. Configure the approved kubectl path, kubeconfig path, approved contexts, and namespaces.
-3. Run the operator build from this checkout. Replace these paths with your approved locations. Create the output directory first.
+1. Follow [setup with an existing kubeconfig](docs/setup.md). Reuse the existing ServiceAccount, Role, and RoleBinding when they provide the required access.
+2. Configure the kubectl path, kubeconfig path, contexts, and namespaces.
+3. Build Toolbox from this checkout:
 
 ```sh
-go run ./scripts/provision -config /etc/toolbox/toolbox.json -out /opt/toolbox/bin/toolbox
+go build -o ./toolbox ./cmd/toolbox
 ```
 
-Ordinary builds cannot execute requests. Runtime `--config` and `KUBECONFIG` overrides are unsupported. Rebuild after changing the Toolbox configuration or kubectl executable.
+Pass the configuration with `--config FILE`. Toolbox trusts that file's author. Environment variables cannot select configuration. [Operator builds](docs/setup.md#optional-built-in-default) can provide a default configuration.
 
 ## Usage
 
-Run the provisioned executable:
+Run the executable with your configuration. Replace `prod-a`, `apps`, and `api` with your context, namespace, and service names. Enable forwarding before starting a tunnel:
 
 ```sh
-/opt/toolbox/bin/toolbox kubectl get pods --context apps-reader -A -o json
-/opt/toolbox/bin/toolbox kubectl get --raw /api/v1/namespaces/apps/pods
-/opt/toolbox/bin/toolbox kubectl logs api-0 -n apps --tail 20 --since 10m
+./toolbox --config /etc/toolbox/toolbox.json kubectl get pods --context prod-a -A -o json
+./toolbox --config /etc/toolbox/toolbox.json kubectl port-forward service/api 18080:80 --context prod-a -n apps --duration 1m
+./toolbox --config /etc/toolbox/toolbox.json mcp
 ```
 
-Use `-A` for all approved namespaces. Read [context configuration](docs/setup.md#multiple-contexts) and [raw GET and port-forward usage](docs/raw-and-port-forward.md).
+Use `-A` for all approved namespaces. Read [context selection](docs/contexts.md) and [raw GET and port-forward usage](docs/raw-and-port-forward.md).
 
 Read [six CLI and MCP examples with outputs](docs/examples.md). The examples cover pod lists, deployment status, sanitized logs, previous container logs, and denied Secret access.
 
 ## Claude Code
 
-Register the provisioned executable with the [Claude Code CLI](https://code.claude.com/docs/en/mcp):
+Register the executable with the [Claude Code CLI](https://code.claude.com/docs/en/mcp):
 
 ```sh
-claude mcp add --transport stdio --scope user toolbox -- /opt/toolbox/bin/toolbox mcp
+claude mcp add --transport stdio --scope user toolbox -- /opt/toolbox/bin/toolbox --config /etc/toolbox/toolbox.json mcp
 ```
 
 Read [client configuration](docs/clients.md) for project JSON, Windows paths, Claude prompts, and Codex registration.
@@ -51,6 +51,8 @@ Use a read-only Kubernetes identity. Protect credentials from direct agent acces
 ## Reference
 
 - [Setup and credential rotation](docs/setup.md)
+- [Context selection](docs/contexts.md)
+- [Port forwarding](docs/raw-and-port-forward.md#enable-tunnels)
 - [CLI and MCP examples](docs/examples.md)
 - [Client configuration](docs/clients.md)
 - [Architecture and future glab integration](docs/architecture.md)
