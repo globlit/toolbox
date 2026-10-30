@@ -1,10 +1,8 @@
 # Command examples
 
-Use the provisioned `toolbox` executable on your command search path. Replace `apps`, `api`, `api-0`, and `app` with your namespace, deployment, pod, and container names.
+Use the `toolbox` executable. Replace `apps`, `api`, `api-0`, and `app` with your namespace, deployment, pod, and container names.
 
-These six outputs were observed on 2026-10-30 using synthetic data from a local mock Kubernetes API. Production data will differ. JSON formatting was expanded for readability.
-
-MCP means Model Context Protocol. Examples 4–6 show `tools/call` requests after session initialization. Use a configured [MCP client](clients.md) to send them. Successful output blocks show `result.structuredContent`. The error block shows the complete `result`. Duplicate text content is omitted from successful examples.
+Examples 4–6 show `tools/call` requests after session initialization. Use a configured [MCP client](clients.md) to send them. Successful output blocks show `result.structuredContent`. The error block shows the complete `result`.
 
 ## 1. List pods with the CLI
 
