@@ -1,0 +1,16 @@
+{
+  "kubectl": {
+    "binary": "/usr/local/bin/kubectl",
+    "kubeconfig": "/etc/toolbox/reader.kubeconfig",
+    "context": "toolbox-reader",
+    "default_namespace": "apps",
+    "namespaces": ["apps", "observability", "kube-system"],
+    "allow_cluster_scoped": false,
+    "timeout_seconds": 30,
+    "max_output_bytes": 1048576
+  },
+  "redaction": {
+    "literals": [],
+    "patterns": ["customer-id=[0-9]+"]
+  }
+}

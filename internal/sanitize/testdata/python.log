@@ -1,0 +1,6 @@
+{"level":"ERROR","message":"diagnostic-preserved","exception":{"headers":{"X-Custom":"HEADER_CANARY"},"request_body":{"anything":"BODY_CANARY"}},"nested":"{\"api_key\":\"PYTHON_CANARY\"}"}
+Traceback (most recent call last):
+  File "worker.py", line 42, in connect
+ConnectionError: postgresql://PYTHON_CANARY:PASS_CANARY@db/app
+password: |
+  MULTILINE_CANARY

@@ -1,0 +1,8 @@
+/dist/
+/toolbox
+/toolbox.exe
+*.test
+*.out
+/config/*.local.*
+*.kubeconfig
+!*.example.*

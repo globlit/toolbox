@@ -1,0 +1,2 @@
+{"level":"error","logger":"postgres","msg":"diagnostic-preserved","record":{"sql_state_code":"28P01","user_name":"CNPG_CANARY","query":"SELECT 'DATA_CANARY'","detail":"DETAIL_CANARY","message":"password=PASS_CANARY"}}
+2026-10-29 UTC LOG: statement: SELECT 'SQL_CANARY'

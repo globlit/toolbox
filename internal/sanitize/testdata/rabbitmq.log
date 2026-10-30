@@ -1,0 +1,2 @@
+2026-10-29 12:00:00 [warning] diagnostic-preserved AMQP connection from 10.20.30.40: client user 'RABBIT_CANARY' failed
+2026-10-29 12:00:00 [error] amqp://RABBIT_CANARY:PASS_CANARY@rabbit:5672/vhost

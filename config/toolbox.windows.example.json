@@ -1,0 +1,13 @@
+{
+  "kubectl": {
+    "binary": "C:\\Program Files\\Kubernetes\\kubectl.exe",
+    "kubeconfig": "C:\\ProgramData\\toolbox\\reader.kubeconfig",
+    "context": "toolbox-reader",
+    "default_namespace": "apps",
+    "namespaces": ["apps", "observability", "kube-system"],
+    "allow_cluster_scoped": false,
+    "timeout_seconds": 30,
+    "max_output_bytes": 1048576
+  },
+  "redaction": {"literals": [], "patterns": []}
+}

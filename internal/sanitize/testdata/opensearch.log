@@ -1,0 +1,2 @@
+{"type":"server","level":"ERROR","message":"diagnostic-preserved rejected authentication","Authorization":"Basic OPENSEARCH_CANARY","query":{"match":{"email":"SEARCH_CANARY"}}}
+[WARN] diagnostic-preserved password="OPENSEARCH_CANARY with spaces"

@@ -1,0 +1,73 @@
+# Operator applies this after reviewing resource and namespace scope.
+# The namespace "apps" must already exist. No cluster changes are made by toolbox.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: toolbox-reader
+  namespace: apps
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: toolbox-namespaced-reader
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, endpoints, events, persistentvolumeclaims]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets, replicasets]
+    verbs: [get, list]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list]
+  - apiGroups: [cert-manager.io]
+    resources: [certificates, certificaterequests, issuers]
+    verbs: [get, list]
+  - apiGroups: [postgresql.cnpg.io]
+    resources: [clusters, backups, scheduledbackups, poolers]
+    verbs: [get, list]
+  - apiGroups: [rabbitmq.com]
+    resources: [rabbitmqclusters]
+    verbs: [get, list]
+  - apiGroups: [opensearch.opster.io]
+    resources: [opensearchclusters]
+    verbs: [get, list]
+  - apiGroups: [monitoring.coreos.com]
+    resources: [prometheuses, alertmanagers, servicemonitors, podmonitors, prometheusrules]
+    verbs: [get, list]
+  - apiGroups: [cilium.io]
+    resources: [ciliumendpoints, ciliumnetworkpolicies]
+    verbs: [get, list]
+---
+# A RoleBinding scopes this ClusterRole to one namespace. Do not replace it
+# with a ClusterRoleBinding. Repeat only in approved namespaces, retaining the
+# service account subject's namespace (apps).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: toolbox-reader
+  namespace: apps
+subjects:
+  - kind: ServiceAccount
+    name: toolbox-reader
+    namespace: apps
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: toolbox-namespaced-reader

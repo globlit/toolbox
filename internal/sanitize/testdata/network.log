@@ -1,0 +1,3 @@
+{"service":"cilium","msg":"diagnostic-preserved","source":"10.20.30.40","destination":"2001:db8::1","token":"CILIUM_CANARY"}
+[ERROR] plugin/errors: diagnostic-preserved user 'DNSUSER_CANARY' 10.20.30.40
+{"service":"kubeseak","msg":"diagnostic-preserved","payload":"PACKET_CANARY","headers":{"Authorization":"HEADER_CANARY"}}
