@@ -1,6 +1,6 @@
 # Toolbox
 
-Toolbox gives artificial intelligence (AI) agents Kubernetes reads and optional port forwarding through a command-line interface (CLI) or the Model Context Protocol (MCP). It sanitizes resource data, logs, and error output. Native executables support Linux, macOS, and Windows.
+Toolbox gives artificial intelligence (AI) agents Kubernetes reads and optional port forwarding through a command-line interface (CLI) or the Model Context Protocol (MCP). We try to cleans up resource data, logs, and error output as much as possible to reduce the risk of leaks, but its not perfect right now so don't solelly rely on it blindly :)
 
 ## Install
 
@@ -14,7 +14,7 @@ go install github.com/globlit/toolbox@v0.4.0
 
 Or download a [release binary](https://github.com/globlit/toolbox/releases/latest) for Linux, macOS/Darwin, or Windows on ARM64 or x86-64. Releases include SHA-256 checksums and a Cosign signature bundle. Follow [installation and signature verification](docs/install.md) before running a downloaded binary.
 
-Public installation requires the first release from the new workflow. Install kubectl separately. Follow [setup with an existing kubeconfig](docs/setup.md), then pass `--config FILE`. Toolbox trusts the configuration author. Environment variables cannot select configuration.
+Install kubectl separately. Follow [setup with an existing kubeconfig](docs/setup.md), then use `--config FILE`.
 
 ## Usage
 
@@ -42,13 +42,11 @@ Read [client configuration](docs/clients.md) for project JSON, Windows paths, Cl
 
 ## Restrictions
 
-Toolbox permits catalog reads, approved raw GET paths, and finite pod logs. It rejects mutation commands, Secrets, exec, proxy, and unknown endpoints. Optional port-forward tunnels can carry writes and unsanitized traffic. Run `toolbox kubectl resources` to inspect the catalog.
+Toolbox allows multiple stuff such as catalog reads, approved raw GET paths, and finite pod logs. `toolbox` blocks "write" commands, Secrets, exec, proxy, and unknown endpoints. Optional port-forward tunnels can be used but there is no check of what's send to it so use it at your own risk (which is the same risk as running kubectl port-forward and allow the agent to interact with the endpoint anyway). Run `toolbox kubectl resources` to inspect the catalog.
 
 ConfigMaps are enabled by default. Configure [ConfigMap exclusions and wildcard namespaces](docs/configmaps.md).
 
-Ambiguous log lines become `[WITHHELD: ambiguous log fragment]`. Independent neighboring records remain visible. Sanitization cannot identify every secret.
-
-Use a read-only Kubernetes identity. Protect credentials from direct agent access. Same-user execution does not provide isolation. Read the [security model](docs/security.md) before deployment.
+To further improve security, use a read-only Kubernetes identity; protect credentials from direct agent access Read the [security model](docs/security.md) before deployment.
 
 ## Reference
 
