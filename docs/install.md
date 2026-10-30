@@ -123,6 +123,8 @@ The [workflow](../.github/workflows/ci.yml) verifies Linux, macOS, and Windows t
 
 Release jobs run serially. Superseded commits are skipped. Reruns reuse an existing tag on the same commit. Published releases remain unchanged. Failed draft uploads can be retried.
 
+GitHub release requests retry HTTP 429 and 5xx errors up to five attempts. Retries check whether the release is missing, draft, or published. Other lookup failures stop the job. After an outage, rerun the failed release job to complete the existing version.
+
 The job hashes all binaries and `VERSION`, signs `SHA256SUMS` through GitHub's OpenID Connect identity, and verifies the signature before publishing. No signing private key is configured in repository secrets. Only the release job receives `contents: write` and `id-token: write`. Repository rules must permit its tag creation and release publication. [Sigstore signing reference](https://docs.sigstore.dev/cosign/signing/signing_with_blobs/).
 
 The expected signing identity above uses the current `master` branch. If the default branch or workflow path changes, update the documented identity before publishing from that location. Do not replace the exact identity with an unrestricted regular expression.
