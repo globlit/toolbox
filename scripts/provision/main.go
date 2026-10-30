@@ -11,8 +11,8 @@ import (
 )
 
 func main() {
-	path := flag.String("config", "", "absolute path to the approved operator JSON")
-	out := flag.String("out", "", "absolute output path for the provisioned gateway")
+	path := flag.String("config", "", "Absolute path to the approved configuration JSON.")
+	out := flag.String("out", "", "Absolute output path for the provisioned gateway.")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "unexpected arguments")
@@ -22,5 +22,5 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Println("Built gateway with pinned configuration and kubectl digests.")
+	fmt.Println("Gateway build succeeded.")
 }

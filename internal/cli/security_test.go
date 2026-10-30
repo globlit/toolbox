@@ -32,7 +32,7 @@ func TestD1UnprovisionedBuildHasNoEnvironmentFallback(t *testing.T) {
 	t.Setenv("TOOLBOX_CONFIG_PATH", "attacker.json")
 	var out, stderr bytes.Buffer
 	code := Run(context.Background(), []string{"kubectl", "get", "pods"}, &out, &stderr)
-	if code == 0 || out.Len() != 0 || !strings.Contains(stderr.String(), "not pinned") {
+	if code == 0 || out.Len() != 0 || !strings.Contains(stderr.String(), "operator build required") {
 		t.Fatal(code, out.String(), stderr.String())
 	}
 }

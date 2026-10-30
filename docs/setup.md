@@ -108,7 +108,7 @@ go run ./scripts/provision -config /etc/toolbox/toolbox.json -out /opt/toolbox/b
 Expected output:
 
 ```text
-Built gateway with pinned configuration and kubectl digests.
+Gateway build succeeded.
 ```
 
 The build records the approved configuration path and SHA-256 digests. It does not test cluster connectivity. Verify a permitted read:
@@ -117,7 +117,7 @@ The build records the approved configuration path and SHA-256 digests. It does n
 /opt/toolbox/bin/toolbox kubectl get pods -n apps
 ```
 
-Expect a JSON result with `data`, `redactions`, and `untrusted`. An empty namespace returns an empty `items` array. If the command fails, check the selected context, file access, credential validity, certificate trust, and resource permission. `kubectl resources` lists Toolbox's catalog without checking cluster permissions.
+Expect a JSON result with `data`, `redactions`, and `untrusted`. An empty namespace returns an empty `items` array. If the command fails, check the selected context, file access, credential validity, certificate trust, and resource permission. `toolbox kubectl resources` lists Toolbox's catalog without checking cluster permissions.
 
 Register the executable using [client configuration](clients.md). Protect the executable and its parent directories from agent modification. Apply the same protection to kubectl, configuration, and credentials. Use separate operating-system isolation if the agent must not read credentials or contact Kubernetes directly.
 

@@ -179,7 +179,7 @@ func (s *Sanitizer) walk(v any, depth int, report *Report) any {
 func (s *Sanitizer) JSON(b []byte) (json.RawMessage, Report, error) {
 	v, ok := parseJSON(b)
 	if !ok {
-		return nil, Report{}, errors.New("invalid structured output; response withheld")
+		return nil, Report{}, errors.New("invalid JSON output. Response discarded")
 	}
 	report := Report{}
 	result, err := json.Marshal(s.walk(v, 0, &report))

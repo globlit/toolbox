@@ -93,7 +93,7 @@ func (s *Service) execute(ctx context.Context, args []string, structured bool) (
 			return Result{}, err
 		}
 		if len(result.Data) == 0 || result.Data[0] != '{' {
-			return Result{}, errors.New("expected a resource object; response withheld")
+			return Result{}, errors.New("expected a JSON resource object. Response discarded")
 		}
 		result.Redactions += report.Redactions
 		result.WithheldLines += report.WithheldLines
@@ -104,7 +104,7 @@ func (s *Service) execute(ctx context.Context, args []string, structured bool) (
 	}
 	encoded, err := json.Marshal(result)
 	if err != nil || len(encoded) > s.settings.MaxOutputBytes {
-		return Result{}, errors.New("sanitized output exceeded limit; response withheld; narrow the query")
+		return Result{}, errors.New("sanitized output exceeded the limit. Response discarded. Narrow the query")
 	}
 	return result, nil
 }

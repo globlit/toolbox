@@ -46,19 +46,19 @@ var aliases = map[string]string{
 }
 
 type GetInput struct {
-	Resource  string `json:"resource" jsonschema:"Allowlisted resource name; use kubectl_resources for the catalog"`
-	Name      string `json:"name,omitempty" jsonschema:"Optional single object name"`
-	Namespace string `json:"namespace,omitempty" jsonschema:"An operator-approved namespace; omitted uses the configured default"`
-	Selector  string `json:"selector,omitempty" jsonschema:"Optional label selector"`
+	Resource  string `json:"resource" jsonschema:"Resource name from kubectl_resources or a supported alias."`
+	Name      string `json:"name,omitempty" jsonschema:"Single object name. Omit to list objects."`
+	Namespace string `json:"namespace,omitempty" jsonschema:"Approved namespace. Defaults to the configured namespace. Omit for cluster-scoped resources."`
+	Selector  string `json:"selector,omitempty" jsonschema:"Label selector. Maximum 512 bytes."`
 }
 
 type LogsInput struct {
-	Pod       string `json:"pod" jsonschema:"Single pod name; no workload or URL targets"`
-	Namespace string `json:"namespace,omitempty"`
-	Container string `json:"container,omitempty"`
-	Previous  bool   `json:"previous,omitempty"`
-	Tail      int    `json:"tail,omitempty" jsonschema:"1..2000 lines; default 200"`
-	Since     string `json:"since,omitempty" jsonschema:"Duration from 1s to 24h; default 1h"`
+	Pod       string `json:"pod" jsonschema:"Single pod name. Workload targets and URLs are unsupported."`
+	Namespace string `json:"namespace,omitempty" jsonschema:"Approved namespace. Defaults to the configured namespace."`
+	Container string `json:"container,omitempty" jsonschema:"Container name. Required when Kubernetes cannot select a default."`
+	Previous  bool   `json:"previous,omitempty" jsonschema:"Logs from the previous container instance. Defaults to false."`
+	Tail      int    `json:"tail,omitempty" jsonschema:"Log lines from 1 to 2000. Omit or use 0 for the default of 200."`
+	Since     string `json:"since,omitempty" jsonschema:"Lookback duration from 1s to 24h. Defaults to 1h. Fractional seconds round up."`
 }
 
 var nameRE = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
@@ -95,7 +95,7 @@ func getArgs(k config.Kubectl, in GetInput) ([]string, error) {
 	}
 	idx := slices.IndexFunc(Catalog(k), func(x Resource) bool { return x.Name == r })
 	if idx < 0 {
-		return nil, errors.New("resource is not permitted; use kubectl_resources for the catalog")
+		return nil, errors.New("resource is not permitted. Use toolbox kubectl resources or kubectl_resources for the catalog")
 	}
 	if in.Name != "" && !validName(in.Name) {
 		return nil, errors.New("invalid object name")
@@ -146,14 +146,14 @@ func logsArgs(k config.Kubectl, in LogsInput) ([]string, error) {
 		in.Tail = 200
 	}
 	if in.Tail < 1 || in.Tail > 2000 {
-		return nil, errors.New("tail must be between 1 and 2000")
+		return nil, errors.New("tail must be between 1 and 2000 lines. Use 0 for the default of 200")
 	}
 	if in.Since == "" {
 		in.Since = "1h"
 	}
 	d, err := time.ParseDuration(in.Since)
 	if err != nil || d < time.Second || d > 24*time.Hour {
-		return nil, errors.New("since must be between 1s and 24h")
+		return nil, errors.New("since must be a duration from 1s to 24h")
 	}
 	// Use a fixed GET endpoint, bypassing discovery and workload resolution.
 	// No limitBytes: partial records could hide the identifying part of a secret.

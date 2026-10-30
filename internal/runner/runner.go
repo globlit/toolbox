@@ -50,7 +50,7 @@ func New(binary, digest string, setup Setup, timeout time.Duration, limit int) (
 	}
 	expected, err := hex.DecodeString(digest)
 	if err != nil || len(expected) != sha256.Size {
-		return nil, errors.New("tool executable digest is not pinned")
+		return nil, errors.New("tool executable digest is missing or invalid")
 	}
 	r := &Runner{binary: path, digest: expected, setup: setup, timeout: timeout, limit: limit, slots: make(chan struct{}, 2)}
 	if err := r.verifyExecutable(); err != nil {
@@ -90,7 +90,7 @@ func (r *Runner) Run(parent context.Context, args []string) (Result, error) {
 	case r.slots <- struct{}{}:
 		defer func() { <-r.slots }()
 	default:
-		return Result{}, errors.New("toolbox is busy; retry later")
+		return Result{}, errors.New("toolbox is busy. Retry later")
 	}
 	ctx, cancel := context.WithTimeout(parent, r.timeout)
 	defer cancel()
@@ -124,10 +124,10 @@ func (r *Runner) Run(parent context.Context, args []string) (Result, error) {
 	}
 	err = cmd.Run()
 	if c.overflow {
-		return Result{}, errors.New("output exceeded limit; entire response withheld; narrow the query or reduce log tail")
+		return Result{}, errors.New("output exceeded the limit. Response discarded. Narrow the query or reduce tail")
 	}
 	if ctx.Err() != nil {
-		return Result{}, errors.New("request cancelled or timed out; partial output withheld")
+		return Result{}, errors.New("request cancelled or timed out. Partial output discarded")
 	}
 	result := Result{out.b.Bytes(), stderr.b.Bytes()}
 	if err != nil {

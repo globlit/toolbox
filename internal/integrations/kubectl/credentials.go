@@ -63,7 +63,7 @@ func credentialSnapshot(k config.Kubectl) ([]byte, []string, error) {
 	d := yaml.NewDecoder(bytes.NewReader(b))
 	d.KnownFields(true)
 	if d.Decode(&source) != nil || d.Decode(new(any)) != io.EOF {
-		return nil, nil, errors.New("unsupported kubeconfig: require one document with static credentials, verified TLS, and no plugins, proxies, impersonation or unknown fields")
+		return nil, nil, errors.New("unsupported kubeconfig. Use one document with static credentials and verified TLS. Plugins, proxies, impersonation, and unknown fields are rejected")
 	}
 	if source.APIVersion != "v1" || source.Kind != "Config" {
 		return nil, nil, errors.New("kubeconfig must be a v1 Config")
@@ -107,7 +107,7 @@ func credentialSnapshot(k config.Kubectl) ([]byte, []string, error) {
 	}
 	for _, pair := range [][2]*string{{&cl.CAData, &cl.CAFile}, {&u.CertData, &u.CertFile}, {&u.KeyData, &u.KeyFile}} {
 		if *pair[0] != "" && *pair[1] != "" {
-			return nil, nil, errors.New("ambiguous inline and file credentials")
+			return nil, nil, errors.New("credential data uses both inline and file sources. Select one source")
 		}
 		if *pair[1] != "" {
 			path := *pair[1]

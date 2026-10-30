@@ -22,7 +22,7 @@ func loadPinned(path, digest, binaryDigest string) (Config, error) {
 	want, err := hex.DecodeString(digest)
 	binaryHash, binaryErr := hex.DecodeString(binaryDigest)
 	if !filepath.IsAbs(path) || err != nil || len(want) != sha256.Size || binaryErr != nil || len(binaryHash) != sha256.Size {
-		return c, errors.New("operator configuration is not pinned; provision a trusted build")
+		return c, errors.New("operator build required. Run scripts/provision")
 	}
 	b, err := ReadFile(path)
 	if err != nil {
@@ -34,7 +34,7 @@ func loadPinned(path, digest, binaryDigest string) (Config, error) {
 	}
 	// Parse exactly the bytes whose digest was checked, never reread the path.
 	if Decode(b, &c) != nil {
-		return c, errors.New("invalid pinned operator configuration")
+		return c, errors.New("invalid approved operator configuration")
 	}
 	c.Kubectl.ExecutableSHA256 = binaryDigest
 	return c, c.Validate()

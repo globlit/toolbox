@@ -14,18 +14,21 @@ import (
 	transport "toolbox/internal/transport/mcp"
 )
 
-const Help = `toolbox 0.2.0 - read-only agent gateway
+const Help = `toolbox 0.2.0 - read-only Kubernetes access
 
+Usage:
   toolbox mcp
   toolbox kubectl resources
   toolbox kubectl get RESOURCE [NAME] [-n NAMESPACE] [-l SELECTOR]
   toolbox kubectl logs POD [-n NAMESPACE] [-c CONTAINER] [--previous] [--tail N] [--since 1h]
   toolbox version
+  toolbox --help
 
-Both transports share a closed read policy and mandatory sanitizer. Output is JSON.
-This is not a kubectl passthrough. Unknown commands/flags are rejected.
-Configuration is pinned by an operator build; --config and environment overrides are rejected.
-Operator-owned static credentials and least-privilege RBAC are required.
+Read catalog resources or finite pod logs. Writes and arbitrary flags are rejected.
+Read results use JSON. The Model Context Protocol (MCP) server uses standard input/output.
+Use an operator-provisioned build with static credentials and read-only permissions.
+Runtime --config is rejected. Environment variables cannot select configuration.
+Sanitization can miss secrets. Treat output as untrusted data.
 `
 
 type request struct {
@@ -41,7 +44,7 @@ func parse(args []string) (request, error) {
 		return r, nil
 	}
 	if len(args) < 2 || args[0] != "kubectl" {
-		return r, errors.New("expected kubectl resources, get, or logs")
+		return r, errors.New("invalid command. Run toolbox --help")
 	}
 	r.mode = args[1]
 	args = args[2:]
@@ -49,7 +52,7 @@ func parse(args []string) (request, error) {
 		return r, nil
 	}
 	if r.mode != "get" && r.mode != "logs" {
-		return r, errors.New("command is not permitted")
+		return r, errors.New("command is not permitted. Run toolbox --help")
 	}
 	var positional []string
 	seen := map[string]bool{}
@@ -69,7 +72,7 @@ func parse(args []string) (request, error) {
 			key = "--container"
 		}
 		if seen[key] {
-			return r, errors.New("duplicate option is not permitted")
+			return r, errors.New("duplicate option. Supply each option once")
 		}
 		seen[key] = true
 		if key == "--previous" && r.mode == "logs" {
@@ -81,7 +84,7 @@ func parse(args []string) (request, error) {
 		}
 		allowed := key == "--namespace" || (r.mode == "get" && key == "--selector") || (r.mode == "logs" && (key == "--container" || key == "--tail" || key == "--since"))
 		if !allowed {
-			return r, errors.New("option is not permitted")
+			return r, errors.New("option is not permitted. Run toolbox --help")
 		}
 		if !hasValue {
 			i++
@@ -106,7 +109,7 @@ func parse(args []string) (request, error) {
 		case "--tail":
 			n, err := strconv.Atoi(value)
 			if err != nil {
-				return r, errors.New("tail must be an integer")
+				return r, errors.New("tail must be an integer from 1 to 2000. Use 0 for the default of 200")
 			}
 			r.logs.Tail = n
 		}
@@ -122,7 +125,7 @@ func parse(args []string) (request, error) {
 		r.logs.Pod = positional[0]
 		return r, nil
 	}
-	return r, errors.New("invalid number of arguments")
+	return r, errors.New("invalid number of arguments. Run toolbox --help")
 }
 
 // Run never prints parser errors containing agent-supplied values or file contents.

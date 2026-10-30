@@ -52,7 +52,7 @@ func ReadFile(path string) ([]byte, error) {
 	}
 	b, err := io.ReadAll(io.LimitReader(f, MaxFileBytes+1))
 	if err != nil || len(b) > MaxFileBytes {
-		return nil, errors.New("configuration cannot be read within size limit")
+		return nil, errors.New("cannot read configuration within the 1 MiB limit")
 	}
 	return b, nil
 }
@@ -84,10 +84,10 @@ func Decode(b []byte, v any) error {
 func (c *Config) Validate() error {
 	k := &c.Kubectl
 	if !filepath.IsAbs(k.Binary) || !filepath.IsAbs(k.Kubeconfig) || k.Context == "" || len(k.Context) > 253 {
-		return errors.New("binary and kubeconfig must be absolute paths; context is required")
+		return errors.New("require absolute binary and kubeconfig paths and a context of 1..253 bytes")
 	}
 	if len(k.Namespaces) == 0 || len(k.Namespaces) > 100 || !Namespace(k.DefaultNamespace) {
-		return errors.New("explicit namespaces and a default_namespace are required")
+		return errors.New("require 1..100 namespaces and a valid default_namespace")
 	}
 	found := false
 	for _, ns := range k.Namespaces {
@@ -108,10 +108,10 @@ func (c *Config) Validate() error {
 		k.MaxOutputBytes = 1 << 20
 	}
 	if k.TimeoutSeconds < 1 || k.TimeoutSeconds > 120 || k.MaxOutputBytes < 4096 || k.MaxOutputBytes > 8<<20 {
-		return errors.New("limits: timeout 1..120 seconds, output 4096..8388608 bytes")
+		return errors.New("configuration limits: timeout 1..120 seconds, output 4096..8388608 bytes")
 	}
 	if len(c.Redaction.Literals) > 256 || len(c.Redaction.Patterns) > 64 {
-		return errors.New("too many redaction rules")
+		return errors.New("redaction limits: 256 literals, 64 patterns")
 	}
 	for _, s := range c.Redaction.Literals {
 		if len(s) < 3 || len(s) > 4096 {
@@ -120,7 +120,7 @@ func (c *Config) Validate() error {
 	}
 	for _, s := range c.Redaction.Patterns {
 		if len(s) == 0 || len(s) > 4096 {
-			return errors.New("invalid redaction pattern size")
+			return errors.New("redaction patterns must contain 1..4096 bytes")
 		}
 		if _, err := regexp.Compile(s); err != nil {
 			return errors.New("invalid redaction regular expression")

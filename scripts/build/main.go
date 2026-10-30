@@ -32,7 +32,7 @@ func build() error {
 		cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS="+parts[0], "GOARCH="+parts[1])
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		fmt.Println("Building", target)
+		fmt.Println("Build", target)
 		if err := cmd.Run(); err != nil {
 			return err
 		}

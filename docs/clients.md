@@ -84,7 +84,7 @@ Read [request and result examples](examples.md). Clients initialize the MCP sess
 
 | Result | Action |
 | --- | --- |
-| Configuration is not approved by a provisioned build | Run `scripts/provision` and register its output executable. |
+| `operator build required. Run scripts/provision` | Run `scripts/provision` and register its output executable. |
 | Configuration or executable integrity check fails | Restore the approved files or review the updates and rebuild. |
 | Unsupported kubeconfig | Check the credential restrictions in [setup](setup.md). |
 | Kubernetes returns Forbidden | Check the existing identity's permissions for that namespace and resource. |

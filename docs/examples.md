@@ -2,7 +2,7 @@
 
 Use the `toolbox` executable. Replace `apps`, `api`, `api-0`, and `app` with your namespace, deployment, pod, and container names.
 
-Examples 4–6 show `tools/call` requests after session initialization. Use a configured [MCP client](clients.md) to send them. Successful output blocks show `result.structuredContent`. The error block shows the complete `result`.
+Examples 4–6 show `tools/call` requests after session initialization. Use a configured [MCP client](clients.md) to send them. Successful output blocks show `result.structuredContent`. The error block shows `result.content` and `result.isError`. Transport metadata is omitted.
 
 ## 1. List pods with the CLI
 
@@ -19,6 +19,9 @@ Output:
     "items": [
       {
         "metadata": {
+          "labels": {
+            "app": "api"
+          },
           "name": "api-0",
           "namespace": "apps"
         },
@@ -107,6 +110,9 @@ Output:
     "items": [
       {
         "metadata": {
+          "labels": {
+            "app": "api"
+          },
           "name": "api-0",
           "namespace": "apps"
         },
@@ -177,7 +183,7 @@ Output:
   "content": [
     {
       "type": "text",
-      "text": "resource is not permitted; use kubectl_resources for the catalog"
+      "text": "resource is not permitted. Use toolbox kubectl resources or kubectl_resources for the catalog"
     }
   ],
   "isError": true
