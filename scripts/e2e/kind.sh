@@ -18,9 +18,10 @@ trap 'exit 143' TERM
 node_image=${TOOLBOX_KIND_NODE_IMAGE:-kindest/node:v1.34.11@sha256:44e222ee2132dab25ff87301682f89eb82c7880ea3a1bf543bfe9708fd08d67d}
 kind create cluster --name "$cluster" --image "$node_image" --kubeconfig "$scratch/admin.kubeconfig" --wait 120s
 admin=(kubectl --kubeconfig "$scratch/admin.kubeconfig" --context "kind-$cluster")
+printf 'port: 8080\npassword: SYNTHETIC_CM_SECRET\nmode: debug\n' > "$scratch/settings.yaml"
 for namespace in apps private other; do
   "${admin[@]}" create namespace "$namespace"
-  "${admin[@]}" -n "$namespace" create configmap "settings-$namespace" --from-literal=ordinary=SYNTHETIC_CM_SECRET
+  "${admin[@]}" -n "$namespace" create configmap "settings-$namespace" --from-literal=ordinary=readable-setting --from-literal=password=SYNTHETIC_CM_SECRET --from-literal=header="Bearer SYNTHETIC_CM_SECRET" --from-literal=settings.json='{"port":8080,"password":"SYNTHETIC_CM_SECRET"}' --from-file=settings.yaml="$scratch/settings.yaml"
   "${admin[@]}" -n "$namespace" create secret generic hidden --from-literal=password=SYNTHETIC_SECRET_ONLY
 done
 "${admin[@]}" -n apps create serviceaccount toolbox-reader

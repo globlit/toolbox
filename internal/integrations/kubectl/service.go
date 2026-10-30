@@ -139,7 +139,11 @@ func (s *Service) execute(ctx context.Context, args []string, structured bool) (
 		result.Error = runErr.Error()
 	} else if structured {
 		var err error
-		result.Data, report, err = s.sanitizer.JSON(r.Stdout)
+		if configMapRead(args) {
+			result.Data, report, err = s.sanitizer.ConfigMapJSON(r.Stdout)
+		} else {
+			result.Data, report, err = s.sanitizer.JSON(r.Stdout)
+		}
 		if err != nil {
 			return Result{}, err
 		}

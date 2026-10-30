@@ -71,10 +71,10 @@ func TestConfigMapExclusionsBeforeExecution(t *testing.T) {
 	var calls []string
 	scoped.runner = executorFunc(func(_ context.Context, args []string) (runner.Result, error) {
 		calls = append(calls, strings.Join(args, " "))
-		return runner.Result{Stdout: []byte(`{"kind":"ConfigMapList","items":[{"metadata":{"name":"app-settings","namespace":"apps"},"data":{"ordinary":"SYNTHETIC_CM_SECRET"},"binaryData":{"opaque":"SYNTHETIC_CM_SECRET"}}]}`)}, nil
+		return runner.Result{Stdout: []byte(`{"apiVersion":"v1","kind":"ConfigMapList","items":[{"metadata":{"name":"app-settings","namespace":"apps"},"data":{"ordinary":"readable-setting","password":"SYNTHETIC_CM_SECRET"},"binaryData":{"opaque":"SYNTHETIC_CM_SECRET"}}]}`)}, nil
 	})
 	out, err := s.Get(context.Background(), GetInput{Resource: "cm", AllNamespaces: true})
-	if err != nil || out.Error != "" || strings.Contains(string(out.Data), "SYNTHETIC_CM_SECRET") || !strings.Contains(string(out.Data), "app-settings") {
+	if err != nil || out.Error != "" || strings.Contains(string(out.Data), "SYNTHETIC_CM_SECRET") || (!strings.Contains(string(out.Data), "app-settings") || !strings.Contains(string(out.Data), "readable-setting")) {
 		t.Fatal(out, err)
 	}
 	if !reflect.DeepEqual(out.Namespaces, []string{"apps"}) || !reflect.DeepEqual(calls, []string{"get --raw=/api/v1/namespaces/apps/configmaps"}) {
@@ -101,5 +101,44 @@ func TestConfigMapGlobalContextOverride(t *testing.T) {
 		if scope.ConfigMapsAllowed("apps") {
 			t.Fatal("global disable lost", scope)
 		}
+	}
+}
+
+func TestConfigMapOutputScope(t *testing.T) {
+	c := testutil.Config(t)
+	c.Kubectl.Namespaces = []string{"*"}
+	s, err := New(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	scoped, _ := s.selectContext("")
+	scoped.runner = executorFunc(func(_ context.Context, _ []string) (runner.Result, error) {
+		return runner.Result{Stdout: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"settings"},"data":{"ordinary":"readable-setting","password":"sensitive-canary","custom":"credential-canary"}}`)}, nil
+	})
+	for _, tc := range []struct {
+		name     string
+		read     func() (Result, error)
+		readable bool
+	}{
+		{"typed", func() (Result, error) { return s.Get(context.Background(), GetInput{Resource: "cm", Name: "settings"}) }, true},
+		{"raw", func() (Result, error) {
+			return s.Raw(context.Background(), RawInput{Path: "/api/v1/namespaces/apps/configmaps/settings"})
+		}, true},
+		{"pod-kind-spoof", func() (Result, error) {
+			return s.Get(context.Background(), GetInput{Resource: "pods", Name: "settings"})
+		}, false},
+		{"log-kind-spoof", func() (Result, error) { return s.Logs(context.Background(), LogsInput{Pod: "app"}) }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := tc.read()
+			if err != nil {
+				t.Fatal(err)
+			}
+			value := string(out.Data) + out.Text
+			if strings.Contains(value, "sensitive-canary") || strings.Contains(value, "credential-canary") || strings.Contains(value, "readable-setting") != tc.readable {
+				t.Fatal(out)
+			}
+		})
 	}
 }

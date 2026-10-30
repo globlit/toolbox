@@ -33,6 +33,7 @@ jobs:
             FuzzKnownCredentialInArbitraryLogs \
             FuzzComplexStructuredLogs \
             FuzzEmbeddedSource \
+            FuzzConfigMapData \
             FuzzArbitraryLogBytes; do
             go test ./internal/sanitize -run '^$' -fuzz "^${target}$" -fuzztime=15s -parallel=2
           done

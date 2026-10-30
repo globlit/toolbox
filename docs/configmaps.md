@@ -1,6 +1,6 @@
 # ConfigMaps and namespaces
 
-ConfigMap reads are enabled by default. Use `cm`, `configmap`, or `configmaps`. The sanitizer still redacts `data`, `binaryData`, and annotations.
+ConfigMap reads are enabled by default. Use `cm`, `configmap`, or `configmaps`. Ordinary `data` entries remain readable. The sanitizer replaces values under sensitive keys and masks recognized secrets, configured literals, patterns, and credentials. `binaryData` and annotations remain redacted.
 
 ```sh
 toolbox --config /etc/toolbox/config.json kubectl get cm -n apps -o json
@@ -36,6 +36,12 @@ Set `disable_configmaps: true` to disable ConfigMaps broadly. Namespace entries 
 For multiple contexts, put namespace selections and exclusions in each `contexts` entry. Set `kubectl.disable_configmaps: true` to disable ConfigMaps across every context. A context can also set its own `disable_configmaps: true`.
 
 `"*"` works only as a complete configuration entry. Patterns such as `"prod-*"` are invalid. Requests still require a concrete namespace or `-A`. The default namespace must remain a concrete name. A ConfigMap allowlist cannot expand the main namespace selection.
+
+## Data sanitization
+
+JSON values and `.yaml` / `.yml` files receive structured sanitization. YAML output omits comments and masks anchors, aliases, unsupported tags, and malformed documents. Multiline plaintext and properties values receive text sanitization. Malformed entries do not discard other data entries. Matching multiline configured rules replace the affected entry.
+
+This behavior applies to validated ConfigMap read endpoints, including named reads, lists, `-A`, and raw paths. Logs and other resource types do not gain this exception from a `kind: ConfigMap` field. Unknown or unlabeled secrets can still escape detection.
 
 ## All namespaces
 

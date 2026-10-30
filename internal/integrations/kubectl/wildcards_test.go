@@ -96,7 +96,7 @@ func TestWildcardConfigMapPlans(t *testing.T) {
 				if path == "/api/v1/namespaces" {
 					return runner.Result{Stdout: []byte(`{"items":[{"metadata":{"name":"apps"}},{"metadata":{"name":"private"}}]}`)}, nil
 				}
-				return runner.Result{Stdout: []byte(`{"items":[]}`)}, nil
+				return runner.Result{Stdout: []byte(`{"apiVersion":"v1","kind":"ConfigMapList","items":[]}`)}, nil
 			})
 			_, err = s.Get(context.Background(), GetInput{Resource: tc.resource, AllNamespaces: true})
 			if (err != nil) != (tc.want == nil) || !reflect.DeepEqual(calls, tc.want) {
@@ -238,7 +238,7 @@ func TestWildcardDiscoverySharesOutputBudget(t *testing.T) {
 	calls := 0
 	scoped.runner = executorFunc(func(_ context.Context, args []string) (runner.Result, error) {
 		calls++
-		value := map[string]any{"items": []any{}, "notice": strings.Repeat("resource info ", 200)}
+		value := map[string]any{"apiVersion": "v1", "kind": "ConfigMapList", "items": []any{}, "notice": strings.Repeat("resource info ", 200)}
 		if args[1] == "--raw=/api/v1/namespaces" {
 			value = map[string]any{"items": []any{map[string]any{"metadata": map[string]string{"name": "apps"}}}, "notice": strings.Repeat("scope info ", 150)}
 		}

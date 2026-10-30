@@ -205,6 +205,9 @@ func TestLogRequestStateIsolation(t *testing.T) {
 
 func TestQuotedAssignmentBoundaries(t *testing.T) {
 	for _, input := range []string{
+		`func main() { password := "sensitive ="; println(password) }`,
+		`func main() { fmt.Println("text =") }`,
+		`if password == "sensitive =" { return }`,
 		`ValueError: password="sensitive note='unfinished"`,
 		`level=error msg="password='unfinished" status=failed`,
 		`level=error msg='password="unfinished' status=failed`,

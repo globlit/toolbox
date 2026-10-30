@@ -109,11 +109,11 @@ func TestKindEndToEnd(t *testing.T) {
 				denied       bool
 				want, absent []string
 			}{
-				{"named", []string{"get", "cm", "settings-apps", "-n", "apps", "-o", "json"}, "kubectl_get", map[string]any{"resource": "cm", "name": "settings-apps", "namespace": "apps"}, scenario.blocked, []string{"settings-apps", "[REDACTED]"}, nil},
-				{"all", []string{"get", "configmaps", "-A"}, "kubectl_get", map[string]any{"resource": "configmaps", "all_namespaces": true}, scenario.blocked, []string{"settings-apps"}, absent},
-				{"private", []string{"get", "configmaps", "-n", "private"}, "kubectl_get", map[string]any{"resource": "configmaps", "namespace": "private"}, privateDenied, []string{"settings-private"}, nil},
-				{"raw-private", []string{"get", "--raw", "/api/v1/namespaces/private/configmaps"}, "kubectl_raw", map[string]any{"path": "/api/v1/namespaces/private/configmaps"}, privateDenied, []string{"settings-private"}, nil},
-				{"raw-all", []string{"get", "--raw", "/api/v1/configmaps"}, "kubectl_raw", map[string]any{"path": "/api/v1/configmaps"}, privateDenied, []string{"settings-private", "settings-apps"}, nil},
+				{"named", []string{"get", "cm", "settings-apps", "-n", "apps", "-o", "json"}, "kubectl_get", map[string]any{"resource": "cm", "name": "settings-apps", "namespace": "apps"}, scenario.blocked, []string{"settings-apps", "readable-setting", "[REDACTED]"}, nil},
+				{"all", []string{"get", "configmaps", "-A"}, "kubectl_get", map[string]any{"resource": "configmaps", "all_namespaces": true}, scenario.blocked, []string{"settings-apps", "readable-setting"}, absent},
+				{"private", []string{"get", "configmaps", "-n", "private"}, "kubectl_get", map[string]any{"resource": "configmaps", "namespace": "private"}, privateDenied, []string{"settings-private", "readable-setting"}, nil},
+				{"raw-private", []string{"get", "--raw", "/api/v1/namespaces/private/configmaps"}, "kubectl_raw", map[string]any{"path": "/api/v1/namespaces/private/configmaps"}, privateDenied, []string{"settings-private", "readable-setting"}, nil},
+				{"raw-all", []string{"get", "--raw", "/api/v1/configmaps"}, "kubectl_raw", map[string]any{"path": "/api/v1/configmaps"}, privateDenied, []string{"settings-private", "settings-apps", "readable-setting"}, nil},
 				{"secrets", []string{"get", "secrets", "-n", "apps"}, "kubectl_get", map[string]any{"resource": "secrets", "namespace": "apps"}, true, nil, nil},
 				{"logs", []string{"logs", "log-fixture", "-n", "apps", "--tail", "1000"}, "kubectl_logs", map[string]any{"pod": "log-fixture", "namespace": "apps", "tail": 1000}, false, logMarkers, nil},
 			} {

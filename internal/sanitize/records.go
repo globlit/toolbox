@@ -12,7 +12,7 @@ import (
 
 const Withheld = "[WITHHELD: ambiguous log fragment]"
 
-var assignment = regexp.MustCompile(`(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([A-Za-z_][A-Za-z0-9_.-]*))\s*[:=]\s*`)
+var assignment = regexp.MustCompile(`(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([A-Za-z_][A-Za-z0-9_.-]*))\s*(?::=|==|[:=])\s*`)
 var timestamp = regexp.MustCompile(`^(?:\d{4}-\d{2}-\d{2}[T ][0-9:.]+(?:Z|[+-]\d{2}:\d{2})?|\[\d{4}[-/]\d{2}[-/]\d{2}[ T][0-9:.]+(?:Z|[+-]\d{2}:\d{2})?\])[ \t]`)
 var level = regexp.MustCompile(`(?i)^(?:\[(?:trace|debug|info|warn|warning|error|fatal|critical)\]|(?:trace|debug|info|warn|warning|error|fatal|critical)\b)[ :\t]+`)
 var logfmtEnvelope = regexp.MustCompile(`(?:^|\s)(?:level|severity|ts|timestamp|logger|msg|message)=`)
@@ -43,10 +43,18 @@ func assignmentKey(match []int) (int, int) {
 // continuation tracks open values without interpreting assignments inside quotes.
 func continuation(line string) (string, bool) {
 	skipUntil := 0
+	quotedStart, quotedEnd, cursor := -1, -1, 0
 	block := false
 	for _, m := range assignment.FindAllStringSubmatchIndex(line, -1) {
 		start, end := assignmentKey(m)
 		if start < skipUntil {
+			continue
+		}
+		for quotedEnd <= m[1] && cursor < len(line) {
+			quotedStart, quotedEnd = closedQuoteSpan(line, cursor)
+			cursor = quotedEnd
+		}
+		if quotedStart < m[1] && m[1] < quotedEnd {
 			continue
 		}
 		value := line[m[1]:]
@@ -66,6 +74,27 @@ func continuation(line string) (string, bool) {
 		}
 	}
 	return "", block
+}
+
+// closedQuoteSpan identifies quoted literals, including source-code strings.
+func closedQuoteSpan(line string, cursor int) (int, int) {
+	for cursor < len(line) {
+		i := strings.IndexAny(line[cursor:], `"'`)
+		if i < 0 {
+			break
+		}
+		start := cursor + i
+		delimiter := line[start : start+1]
+		if strings.HasPrefix(line[start:], strings.Repeat(delimiter, 3)) {
+			delimiter = strings.Repeat(delimiter, 3)
+		}
+		end := quoteEndIndex(line[start+len(delimiter):], delimiter)
+		if end >= 0 {
+			return start, start + 2*len(delimiter) + end
+		}
+		cursor = start + len(delimiter)
+	}
+	return len(line), len(line)
 }
 
 func body(line string) string { return timestamp.ReplaceAllString(line, "") }

@@ -42,6 +42,7 @@ GOMAXPROCS=2 go test ./internal/sanitize -run '^$' \
 | `FuzzKnownCredentialInArbitraryLogs` | Generated credentials in arbitrary bytes, normalized credentials, JSON envelopes |
 | `FuzzComplexStructuredLogs` | Nested objects, arrays, serialized JSON, recursion limits |
 | `FuzzEmbeddedSource` | Generated Go, Python, JavaScript, SQL, shell, and PHP snippets in log streams and JSON envelopes |
+| `FuzzConfigMapData` | Readable ConfigMap settings with generated JSON, YAML, properties, and sensitive values |
 | `FuzzArbitraryLogBytes` | Arbitrary bytes, UTF-8 validity, terminal controls, newline counts, report consistency |
 
 Linux continuous integration runs each target for 15 seconds. Ordinary `go test` runs their seed cases on every supported operating system. Retain any failing Go fuzz inputs under `internal/sanitize/testdata/fuzz/` as regression cases.

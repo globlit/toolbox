@@ -122,7 +122,7 @@ Use the [multiple-context configuration](../config/toolbox.multicontext.example.
 }
 ```
 
-Match each `name` to an existing kubeconfig context. Configure 1–100 contexts with 1–100 unique namespaces each. With `--config`, new CLI invocations read configuration edits. Restart MCP to load edits.
+Match each `name` to an existing kubeconfig context. Configure 1–100 contexts with 1–100 unique namespace entries each. Use `["*"]` for all namespaces. With `--config`, new CLI invocations read configuration edits. Restart MCP to load edits.
 
 ```sh
 toolbox kubectl contexts

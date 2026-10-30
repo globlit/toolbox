@@ -44,7 +44,7 @@ Read [existing-kubeconfig setup](setup.md) for the accepted fields. Accept confi
 
 ## Sanitization
 
-Resource reads require valid JSON objects. The sanitizer recursively replaces sensitive fields, including environment arrays, annotations, command arguments, request/response bodies, SQL fields, and credential objects. It also processes keys and embedded strings. Objects deeper than 64 levels are  redacted and replaced with a marker instead.
+Resource reads require valid JSON objects. The sanitizer recursively replaces sensitive fields, including environment arrays, annotations, command arguments, request/response bodies, SQL fields, and credential objects. It also processes keys and embedded strings. Approved ConfigMap reads sanitize individual `data` keys and values while preserving ordinary settings. `binaryData` remains redacted. This exception follows the request endpoint, not a response or log field declaring `kind: ConfigMap`. Objects deeper than 64 levels are  redacted and replaced with a marker instead.
 
 Log processing checks sensitive labels and continuation context before parsing JSON suffixes. Ambiguous physical lines become `[WITHHELD: ambiguous log fragment]`. Newline positions and independent neighboring records remain. Ambiguous inputs include orphaned indentation, bare values, unframed plaintext, malformed structured fragments, and Python dictionary representations.
 
