@@ -24,11 +24,8 @@ Usage:
   toolbox version
   toolbox --help
 
-Read catalog resources or finite pod logs. Writes and arbitrary flags are rejected.
-Read results use JSON. The Model Context Protocol (MCP) server uses standard input/output.
-Use an operator-provisioned build with static credentials and read-only permissions.
-Runtime --config is rejected. Environment variables cannot select configuration.
-Sanitization can miss secrets. Treat output as untrusted data.
+Read resources or pod logs with an operator-provisioned build.
+Writes are rejected. Sanitization can miss secrets.
 `
 
 type request struct {
