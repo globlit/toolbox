@@ -15,6 +15,7 @@ import (
 )
 
 type ForwardInput struct {
+	Context         string   `json:"context,omitempty" jsonschema:"Approved context name. Required when multiple contexts are configured."`
 	Target          string   `json:"target" jsonschema:"Pod name or pod/name, service/name, deployment/name."`
 	Ports           []string `json:"ports" jsonschema:"One to eight numeric [LOCAL:]REMOTE mappings. Use :REMOTE for a random local port. Local ports must be 1024 or higher."`
 	Namespace       string   `json:"namespace,omitempty" jsonschema:"Approved namespace. Defaults to the configured namespace."`
@@ -28,6 +29,7 @@ type ForwardPort struct {
 	Remote int `json:"remote"`
 }
 type ForwardResult struct {
+	Context          string        `json:"context"`
 	ID               string        `json:"id"`
 	Target           string        `json:"target"`
 	Namespace        string        `json:"namespace"`
@@ -104,12 +106,16 @@ func forwardArgs(k config.Kubectl, in ForwardInput) ([]string, string, time.Dura
 var forwardingLine = regexp.MustCompile(`(?m)^Forwarding from 127\.0\.0\.1:([0-9]+) -> ([0-9]+)\r?$`)
 
 func (s *Service) StartForward(ctx context.Context, in ForwardInput) (ForwardResult, error) {
-	args, ns, duration, err := forwardArgs(s.settings, in)
+	scoped, err := s.selectContext(in.Context)
+	if err != nil {
+		return ForwardResult{}, err
+	}
+	args, ns, duration, err := forwardArgs(scoped.settings, in)
 	if err != nil {
 		return ForwardResult{}, err
 	}
 	s.mu.Lock()
-	if s.closed || s.forwardRunner == nil {
+	if s.closed || scoped.forwardRunner == nil {
 		s.mu.Unlock()
 		return ForwardResult{}, errors.New("port-forward service is unavailable")
 	}
@@ -120,13 +126,13 @@ func (s *Service) StartForward(ctx context.Context, in ForwardInput) (ForwardRes
 		default:
 		}
 	}
-	process, err := s.forwardRunner.Start(context.Background(), args, duration)
+	process, err := scoped.forwardRunner.Start(context.Background(), args, duration)
 	if err != nil {
 		s.mu.Unlock()
 		return ForwardResult{}, err
 	}
 	id := rand.Text()
-	session := &forwardSession{process: process, result: ForwardResult{ID: id, Target: args[4], Namespace: ns, Address: "127.0.0.1", ExpiresAt: process.Deadline(), Status: "starting", Ports: []ForwardPort{}}}
+	session := &forwardSession{process: process, result: ForwardResult{Context: scoped.settings.Context, ID: id, Target: args[4], Namespace: ns, Address: "127.0.0.1", ExpiresAt: process.Deadline(), Status: "starting", Ports: []ForwardPort{}}}
 	s.forwards[id] = session
 	s.mu.Unlock()
 	ready := false

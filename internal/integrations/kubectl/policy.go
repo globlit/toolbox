@@ -46,13 +46,16 @@ var aliases = map[string]string{
 }
 
 type GetInput struct {
-	Resource  string `json:"resource" jsonschema:"Resource name from kubectl_resources or a supported alias."`
-	Name      string `json:"name,omitempty" jsonschema:"Single object name. Omit to list objects."`
-	Namespace string `json:"namespace,omitempty" jsonschema:"Approved namespace. Defaults to the configured namespace. Omit for cluster-scoped resources."`
-	Selector  string `json:"selector,omitempty" jsonschema:"Label selector. Maximum 512 bytes."`
+	AllNamespaces bool   `json:"all_namespaces,omitempty" jsonschema:"List across approved namespaces in the selected context. Incompatible with namespace, name, and cluster-scoped resources."`
+	Context       string `json:"context,omitempty" jsonschema:"Approved context name. Required when multiple contexts are configured."`
+	Resource      string `json:"resource" jsonschema:"Resource name from kubectl_resources or a supported alias."`
+	Name          string `json:"name,omitempty" jsonschema:"Single object name. Omit to list objects."`
+	Namespace     string `json:"namespace,omitempty" jsonschema:"Approved namespace. Defaults to the configured namespace. Omit for cluster-scoped resources."`
+	Selector      string `json:"selector,omitempty" jsonschema:"Label selector. Maximum 512 bytes."`
 }
 
 type LogsInput struct {
+	Context   string `json:"context,omitempty" jsonschema:"Approved context name. Required when multiple contexts are configured."`
 	Pod       string `json:"pod" jsonschema:"Single pod name. Workload targets and URLs are unsupported."`
 	Namespace string `json:"namespace,omitempty" jsonschema:"Approved namespace. Defaults to the configured namespace."`
 	Container string `json:"container,omitempty" jsonschema:"Container name. Required when Kubernetes cannot select a default."`
@@ -89,6 +92,9 @@ func Catalog(k config.Kubectl) []Resource {
 }
 
 func getArgs(k config.Kubectl, in GetInput) ([]string, error) {
+	if in.AllNamespaces {
+		return nil, errors.New("all_namespaces requires namespace fan-out")
+	}
 	r := in.Resource
 	if a, ok := aliases[r]; ok {
 		r = a

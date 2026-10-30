@@ -19,11 +19,12 @@ const Help = `toolbox 0.3.0 - Kubernetes reads and port forwarding
 
 Usage:
   toolbox mcp
-  toolbox kubectl resources
-  toolbox kubectl get RESOURCE [NAME] [-n NAMESPACE] [-l SELECTOR]
-  toolbox kubectl get --raw PATH
-  toolbox kubectl port-forward TARGET [LOCAL:]REMOTE... [-n NAMESPACE] [--duration 5m]
-  toolbox kubectl logs POD [-n NAMESPACE] [-c CONTAINER] [--previous] [--tail N] [--since 1h]
+  toolbox kubectl contexts
+  toolbox kubectl resources [--context CONTEXT]
+  toolbox kubectl get RESOURCE [NAME] [-n NAMESPACE | -A] [-l SELECTOR] [-o json] [--context CONTEXT]
+  toolbox kubectl get --raw PATH [-o json] [--context CONTEXT]
+  toolbox kubectl port-forward TARGET [LOCAL:]REMOTE... [-n NAMESPACE] [--duration 5m] [--context CONTEXT]
+  toolbox kubectl logs POD [-n NAMESPACE] [-c CONTAINER] [--previous] [--tail N] [--since 1h] [--context CONTEXT]
   toolbox version
   toolbox --help
 
@@ -33,6 +34,7 @@ Tunnels can carry writes and secrets. Other output is sanitized best effort.
 
 type request struct {
 	mode    string
+	context kubectl.ContextInput
 	get     kubectl.GetInput
 	logs    kubectl.LogsInput
 	raw     kubectl.RawInput
@@ -40,6 +42,43 @@ type request struct {
 }
 
 func parse(args []string) (request, error) {
+	if len(args) < 1 || args[0] != "kubectl" {
+		return parseCommand(args)
+	}
+	var name string
+	seen := false
+	clean := []string{"kubectl"}
+	for i := 1; i < len(args); i++ {
+		key, value, assigned := strings.Cut(args[i], "=")
+		if key != "--context" {
+			clean = append(clean, args[i])
+			continue
+		}
+		if seen {
+			return request{}, errors.New("duplicate context option")
+		}
+		seen = true
+		if !assigned {
+			i++
+			if i >= len(args) {
+				return request{}, errors.New("context requires a value")
+			}
+			value = args[i]
+		}
+		if value == "" || strings.HasPrefix(value, "-") {
+			return request{}, errors.New("invalid context value")
+		}
+		name = value
+	}
+	r, err := parseCommand(clean)
+	if seen && r.mode == "contexts" {
+		return request{}, errors.New("contexts takes no options")
+	}
+	r.context.Context, r.get.Context, r.logs.Context, r.raw.Context, r.forward.Context = name, name, name, name, name
+	return r, err
+}
+
+func parseCommand(args []string) (request, error) {
 	var r request
 	if len(args) == 1 && args[0] == "mcp" {
 		r.mode = "mcp"
@@ -53,7 +92,7 @@ func parse(args []string) (request, error) {
 	}
 	r.mode = args[1]
 	args = args[2:]
-	if r.mode == "resources" && len(args) == 0 {
+	if (r.mode == "resources" || r.mode == "contexts") && len(args) == 0 {
 		return r, nil
 	}
 	if r.mode != "get" && r.mode != "logs" {
@@ -75,11 +114,22 @@ func parse(args []string) (request, error) {
 			key = "--selector"
 		case "-c":
 			key = "--container"
+		case "-o":
+			key = "--output"
+		case "-A":
+			key = "--all-namespaces"
 		}
 		if seen[key] {
 			return r, errors.New("duplicate option. Supply each option once")
 		}
 		seen[key] = true
+		if key == "--all-namespaces" && r.mode == "get" {
+			if hasValue {
+				return r, errors.New("--all-namespaces takes no value")
+			}
+			r.get.AllNamespaces = true
+			continue
+		}
 		if key == "--previous" && r.mode == "logs" {
 			if hasValue {
 				return r, errors.New("--previous takes no value")
@@ -87,7 +137,7 @@ func parse(args []string) (request, error) {
 			r.logs.Previous = true
 			continue
 		}
-		allowed := key == "--namespace" || (r.mode == "get" && (key == "--selector" || key == "--raw")) || (r.mode == "logs" && (key == "--container" || key == "--tail" || key == "--since"))
+		allowed := key == "--namespace" || (r.mode == "get" && (key == "--selector" || key == "--raw" || key == "--output")) || (r.mode == "logs" && (key == "--container" || key == "--tail" || key == "--since"))
 		if !allowed {
 			return r, errors.New("option is not permitted. Run toolbox --help")
 		}
@@ -102,6 +152,10 @@ func parse(args []string) (request, error) {
 			return r, errors.New("invalid option value")
 		}
 		switch key {
+		case "--output":
+			if value != "json" {
+				return r, errors.New("output must be json")
+			}
 		case "--raw":
 			r.raw.Path = value
 		case "--namespace":
@@ -122,8 +176,8 @@ func parse(args []string) (request, error) {
 		}
 	}
 	if r.raw.Path != "" {
-		if len(positional) != 0 || len(seen) != 1 {
-			return r, errors.New("--raw cannot be combined with resources or other options")
+		if len(positional) != 0 || seen["--namespace"] || seen["--selector"] || seen["--all-namespaces"] {
+			return r, errors.New("--raw cannot be combined with resources, namespace, selector, or all-namespaces")
 		}
 		r.mode = "raw"
 		return r, nil
@@ -132,6 +186,9 @@ func parse(args []string) (request, error) {
 		r.get.Resource = positional[0]
 		if len(positional) == 2 {
 			r.get.Name = positional[1]
+		}
+		if r.get.AllNamespaces && (r.get.Namespace != "" || r.get.Name != "") {
+			return r, errors.New("-A cannot be combined with namespace or name")
 		}
 		return r, nil
 	}
@@ -251,7 +308,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, load func
 	exit := 0
 	switch r.mode {
 	case "resources":
-		out = transport.Catalog{Resources: service.Resources(), Namespaces: service.Namespaces()}
+		out, err = service.ResourceCatalog(r.context)
+	case "contexts":
+		out = service.Contexts()
 	case "get":
 		var result kubectl.Result
 		result, err = service.Get(ctx, r.get)

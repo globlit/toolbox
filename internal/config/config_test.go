@@ -38,3 +38,38 @@ func TestStrictConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestContextConfiguration(t *testing.T) {
+	base := Config{Kubectl: Kubectl{Binary: filepath.Join(t.TempDir(), "kubectl"), Kubeconfig: filepath.Join(t.TempDir(), "kubeconfig"), Contexts: []Context{
+		{Name: "prod-a", DefaultNamespace: "apps", Namespaces: []string{"apps"}},
+		{Name: "prod-b", DefaultNamespace: "billing", Namespaces: []string{"billing"}, AllowPortForward: true},
+	}}}
+	if err := base.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	scopes := base.Kubectl.Scopes()
+	if scopes[0].AllowPortForward || !scopes[1].AllowPortForward || scopes[1].Context != "prod-b" || scopes[1].TimeoutSeconds != 30 {
+		t.Fatal(scopes)
+	}
+	for _, mutate := range []func(*Kubectl){
+		func(k *Kubectl) { k.Context = "prod-a" },
+		func(k *Kubectl) { k.Namespaces = []string{"apps"} },
+		func(k *Kubectl) { k.DefaultNamespace = "apps" },
+		func(k *Kubectl) { k.AllowClusterScoped = true },
+		func(k *Kubectl) { k.AllowPortForward = true },
+		func(k *Kubectl) { k.Contexts[1].Name = "prod-a" },
+		func(k *Kubectl) { k.Contexts[1].Name = "" },
+		func(k *Kubectl) { k.Contexts[1].Name = "prod\na" },
+		func(k *Kubectl) { k.Contexts[1].Namespaces = []string{"*"} },
+		func(k *Kubectl) { k.Contexts[1].Namespaces = []string{"billing", "billing"} },
+		func(k *Kubectl) { k.Contexts[1].DefaultNamespace = "apps" },
+		func(k *Kubectl) { k.Contexts = make([]Context, 101) },
+	} {
+		c := base
+		c.Kubectl.Contexts = append([]Context{}, base.Kubectl.Contexts...)
+		mutate(&c.Kubectl)
+		if c.Validate() == nil {
+			t.Fatal("invalid context configuration accepted", c.Kubectl)
+		}
+	}
+}

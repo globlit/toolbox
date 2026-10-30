@@ -10,7 +10,8 @@ import (
 )
 
 type RawInput struct {
-	Path string `json:"path" jsonschema:"Absolute Kubernetes API path. Only approved resource and discovery GET endpoints are permitted."`
+	Context string `json:"context,omitempty" jsonschema:"Approved context name. Required when multiple contexts are configured."`
+	Path    string `json:"path" jsonschema:"Absolute Kubernetes API path. Only approved resource and discovery GET endpoints are permitted."`
 }
 
 // rawArgs accepts canonical read paths and rebuilds the query before execution.

@@ -18,7 +18,7 @@ MCP tool call:
 
 Raw requests permit GET only. The path must match a catalog resource in an approved namespace, an enabled cluster-scoped resource, or a discovery endpoint. Discovery supports `/version`, `/api`, `/apis`, and catalog API groups/versions. Resource queries accept `labelSelector`, `fieldSelector`, and a list `limit` from 1 to 2,000.
 
-Exec, attach, proxy, Secrets, ConfigMaps, watch, unknown endpoints, encoded path segments, and duplicate query keys are rejected. Use `kubectl_logs` or `toolbox kubectl logs` for bounded log reads. Raw requests cannot be combined with resource names or other CLI flags. Returned JSON receives the same sanitization as typed reads. [`kubectl get` reference](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_get/).
+Exec, attach, proxy, Secrets, ConfigMaps, watch, unknown endpoints, encoded path segments, and duplicate query keys are rejected. Use `kubectl_logs` or `toolbox kubectl logs` for bounded log reads. Raw requests accept `--context` and `-o json`. They reject resource names, namespace flags, selectors, and `-A`. Returned JSON receives the same sanitization as typed reads. [`kubectl get` reference](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_get/).
 
 ## Enable tunnels
 
@@ -31,7 +31,7 @@ Add these fields to the approved configuration's `kubectl` object:
 }
 ```
 
-Rebuild with `scripts/provision`. Forwarding is disabled by default. The lifetime limit accepts 1 to 3,600 seconds.
+With `kubectl.contexts`, set `allow_port_forward` per context. Keep `port_forward_max_seconds` in the `kubectl` object. Rebuild with `scripts/provision`. Forwarding is disabled by default. The lifetime limit accepts 1 to 3,600 seconds.
 
 Grant the existing identity `get` and `create` on `pods/portforward` in each approved namespace. Review the [optional role and binding](../deploy/kubernetes/port-forward.optional.yaml). Existing pod, service, and deployment reads remain necessary for target resolution. The reader role is unchanged.
 
@@ -46,6 +46,8 @@ toolbox kubectl port-forward api-0 18080:8080 -n apps --duration 5m
 toolbox kubectl port-forward service/api :80 -n apps --duration 1m
 toolbox kubectl port-forward deployment/api 18080:8080 19090:9090 -n apps
 ```
+
+Use `--context NAME` or the MCP `context` field when multiple contexts are configured. Tunnel results identify the selected context.
 
 The first result reports `status: "active"`, the tunnel `id`, and assigned ports. The command stays running. Press Ctrl+C to stop it. A final result reports `stopped`, `expired`, or `closed`. Startup errors return a generic diagnostic without raw subprocess output.
 

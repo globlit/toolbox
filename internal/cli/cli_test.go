@@ -60,3 +60,46 @@ func TestRawAndForwardParsing(t *testing.T) {
 		}
 	}
 }
+
+func TestContextJSONAndAllNamespaceCLI(t *testing.T) {
+	c := testutil.MultiContextConfig(t)
+	for _, command := range []string{
+		"get pods --context prod-a -A -o json",
+		"--context=prod-b get pods --output=json",
+		"get --context prod-a pods --all-namespaces -o=json",
+		"get --raw=/api/v1/namespaces/billing/pods --context prod-b -o json",
+		"logs api --context prod-b", "resources --context prod-a", "contexts",
+	} {
+		var out, stderr bytes.Buffer
+		code := run(context.Background(), append([]string{"kubectl"}, strings.Fields(command)...), &out, &stderr, func() (config.Config, error) { return c, nil })
+		if code != 0 || !json.Valid(out.Bytes()) || strings.Contains(out.String(), "canary") {
+			t.Fatal(command, code, out.String(), stderr.String())
+		}
+		if strings.Contains(command, "-A") || strings.Contains(command, "--all-namespaces") {
+			if !strings.Contains(out.String(), `"namespaces":["apps","observability"]`) || !strings.Contains(out.String(), `"context":"prod-a"`) {
+				t.Fatal(out.String())
+			}
+		}
+	}
+	for _, command := range []string{
+		"get pods -A -n apps", "get pods api -A", "get pods -A=true", "get pods -A --all-namespaces",
+		"get pods -o yaml", "get pods -o json --output=json", "get pods -o jsonpath={.data}",
+		"logs api -A", "logs api -o json", "get --raw=/version -A",
+		"get pods --context", "get pods --context=", "get pods --context prod-a --context prod-b", "contexts --context prod-a",
+	} {
+		if _, err := parse(append([]string{"kubectl"}, strings.Fields(command)...)); err == nil {
+			t.Fatal("invalid CLI accepted", command)
+		}
+	}
+	for _, command := range []string{"get pods", "get pods --context unapproved", "get pods --context prod-b -n apps", "get nodes --context prod-b -A"} {
+		var out, stderr bytes.Buffer
+		code := run(context.Background(), append([]string{"kubectl"}, strings.Fields(command)...), &out, &stderr, func() (config.Config, error) { return c, nil })
+		if code == 0 || out.Len() != 0 {
+			t.Fatal("request did not fail closed", command, out.String())
+		}
+	}
+	r, err := parse([]string{"kubectl", "port-forward", "api", ":8080", "--context", "prod-a"})
+	if err != nil || r.forward.Context != "prod-a" {
+		t.Fatal(r, err)
+	}
+}

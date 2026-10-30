@@ -1,0 +1,29 @@
+{
+  "kubectl": {
+    "binary": "/usr/local/bin/kubectl",
+    "kubeconfig": "/etc/toolbox/reader.kubeconfig",
+    "contexts": [
+      {
+        "name": "prod-a",
+        "default_namespace": "apps",
+        "namespaces": ["apps", "observability"],
+        "allow_cluster_scoped": false,
+        "allow_port_forward": false
+      },
+      {
+        "name": "prod-b",
+        "default_namespace": "billing",
+        "namespaces": ["billing"],
+        "allow_cluster_scoped": false,
+        "allow_port_forward": false
+      }
+    ],
+    "timeout_seconds": 30,
+    "max_output_bytes": 1048576,
+    "port_forward_max_seconds": 300
+  },
+  "redaction": {
+    "literals": [],
+    "patterns": []
+  }
+}

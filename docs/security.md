@@ -28,7 +28,7 @@ Use one YAML or JSON `v1 Config` document. The loader accepts a static bearer to
 
 The server address must be a direct HTTPS origin. System certificate trust applies when no certificate authority is supplied. The loader rejects exec plugins, authentication providers, impersonation, proxies, insecure TLS options, token files, extensions, unknown fields, duplicate names, and conflicting credential sources. Unknown-field validation includes unused entries.
 
-Each source configuration or credential file has a 1 MiB limit. The loader selects one context at startup. kubectl receives a reconstructed snapshot, not the source kubeconfig. Source-file edits cannot alter an existing MCP process's credentials. Restart MCP after credential rotation. Expired credentials cause a failed request without identity fallback.
+Each source configuration or credential file has a 1 MiB limit. The loader snapshots all approved contexts at startup. Each request selects an approved context and its namespace restrictions. Unknown contexts fail before execution. Multiple configured contexts require explicit selection. kubectl receives a reconstructed snapshot, not the source kubeconfig. Source-file edits cannot alter an existing MCP process's credentials. Restart MCP after credential rotation. Expired credentials cause a failed request without identity fallback.
 
 Read [existing-kubeconfig setup](setup.md) for the accepted fields. Accept configuration only from a trusted operator. [Kubernetes kubeconfig guidance](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/).
 
@@ -57,6 +57,6 @@ Sanitization does not prevent prompt injection. MCP output is marked untrusted. 
 | Log lookback | 1 hour | 24 hours |
 | Tunnel lifetime | 300 seconds | 3,600 seconds |
 
-The serialized result must also fit the configured output limit. Narrow selectors or reduce the log tail when a response exceeds that limit.
+All contexts and tunnels share the two-process limit. `-A` queries approved namespaces separately. It never requests a cluster-wide namespace list. Combined namespace results share the configured timeout and output budget. The serialized result must also fit the configured output limit. Narrow selectors or reduce the log tail when a response exceeds that limit.
 
 The synthetic fixture corpus covers OpenSearch, RabbitMQ, Kvrocks, CNPG/Postgres, Python, cert-manager, external-dns, Prometheus/Alertmanager, Fluent Bit, Cilium, CoreDNS, and generic workloads. `kubeseak` is treated as a workload label. These fixtures do not establish production format coverage.

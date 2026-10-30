@@ -34,10 +34,14 @@ func New(service *kubectl.Service) *mcp.Server {
 		out, err := service.Raw(ctx, in)
 		return toolResult(out), out, err
 	})
-	mcp.AddTool(s, &mcp.Tool{Name: "kubectl_resources", Description: "List permitted resource types with API versions, scope, and approved namespaces. Cluster-scoped types require operator approval. This catalog does not check cluster permissions.", Annotations: annotation}, func(ctx context.Context, req *mcp.CallToolRequest, in struct{}) (*mcp.CallToolResult, Catalog, error) {
-		return nil, Catalog{service.Resources(), service.Namespaces()}, nil
+	mcp.AddTool(s, &mcp.Tool{Name: "kubectl_contexts", Description: "List approved contexts and namespace permissions.", Annotations: annotation}, func(ctx context.Context, req *mcp.CallToolRequest, in struct{}) (*mcp.CallToolResult, kubectl.ContextCatalog, error) {
+		return nil, service.Contexts(), nil
 	})
-	mcp.AddTool(s, &mcp.Tool{Name: "kubectl_get", OutputSchema: resultSchema, Description: "Read a permitted resource as sanitized JSON. Omit name to list objects. Secrets, ConfigMaps, arbitrary flags, and raw paths are rejected.", Annotations: annotation}, func(ctx context.Context, req *mcp.CallToolRequest, in kubectl.GetInput) (*mcp.CallToolResult, kubectl.Result, error) {
+	mcp.AddTool(s, &mcp.Tool{Name: "kubectl_resources", Description: "List permitted resource types with API versions, scope, and approved namespaces. Cluster-scoped types require operator approval. This catalog does not check cluster permissions.", Annotations: annotation}, func(ctx context.Context, req *mcp.CallToolRequest, in kubectl.ContextInput) (*mcp.CallToolResult, Catalog, error) {
+		out, err := service.ResourceCatalog(in)
+		return nil, out, err
+	})
+	mcp.AddTool(s, &mcp.Tool{Name: "kubectl_get", OutputSchema: resultSchema, Description: "Read a permitted resource as sanitized JSON. Omit name to list objects. Use all_namespaces for approved namespaces only. Secrets, ConfigMaps, arbitrary flags, and raw paths are rejected.", Annotations: annotation}, func(ctx context.Context, req *mcp.CallToolRequest, in kubectl.GetInput) (*mcp.CallToolResult, kubectl.Result, error) {
 		out, err := service.Get(ctx, in)
 		return toolResult(out), out, err
 	})
@@ -48,10 +52,7 @@ func New(service *kubectl.Service) *mcp.Server {
 	return s
 }
 
-type Catalog struct {
-	Resources  []kubectl.Resource `json:"resources"`
-	Namespaces []string           `json:"namespaces"`
-}
+type Catalog = kubectl.ResourceCatalog
 type ForwardCatalog struct {
 	Tunnels []kubectl.ForwardResult `json:"tunnels"`
 }
@@ -69,4 +70,4 @@ func Serve(ctx context.Context, service *kubectl.Service) error {
 }
 
 // RawMessage needs an explicit schema: reflection otherwise infers a byte array.
-var resultSchema = json.RawMessage(`{"type":"object","required":["redactions","untrusted"],"additionalProperties":false,"properties":{"data":{"type":"object"},"text":{"type":"string"},"diagnostics":{"type":"string"},"redactions":{"type":"integer"},"withheld_lines":{"type":"integer"},"error":{"type":"string"},"untrusted":{"type":"boolean"}}}`)
+var resultSchema = json.RawMessage(`{"type":"object","required":["context","redactions","untrusted"],"additionalProperties":false,"properties":{"context":{"type":"string"},"namespaces":{"type":"array","items":{"type":"string"}},"data":{"type":"object"},"text":{"type":"string"},"diagnostics":{"type":"string"},"redactions":{"type":"integer"},"withheld_lines":{"type":"integer"},"error":{"type":"string"},"untrusted":{"type":"boolean"}}}`)

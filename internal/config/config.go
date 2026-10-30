@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"unicode"
 )
 
 const MaxFileBytes = 1 << 20
@@ -20,17 +22,41 @@ type Config struct {
 
 type Kubectl struct {
 	// Supplied by the trusted build, never deserialized from operator/request JSON.
-	ExecutableSHA256      string   `json:"-"`
-	Binary                string   `json:"binary"`
-	Kubeconfig            string   `json:"kubeconfig"`
-	Context               string   `json:"context"`
-	DefaultNamespace      string   `json:"default_namespace"`
-	Namespaces            []string `json:"namespaces"`
-	AllowClusterScoped    bool     `json:"allow_cluster_scoped"`
-	TimeoutSeconds        int      `json:"timeout_seconds"`
-	MaxOutputBytes        int      `json:"max_output_bytes"`
-	AllowPortForward      bool     `json:"allow_port_forward"`
-	PortForwardMaxSeconds int      `json:"port_forward_max_seconds"`
+	ExecutableSHA256      string    `json:"-"`
+	Binary                string    `json:"binary"`
+	Kubeconfig            string    `json:"kubeconfig"`
+	Context               string    `json:"context"`
+	Contexts              []Context `json:"contexts,omitempty"`
+	DefaultNamespace      string    `json:"default_namespace"`
+	Namespaces            []string  `json:"namespaces"`
+	AllowClusterScoped    bool      `json:"allow_cluster_scoped"`
+	TimeoutSeconds        int       `json:"timeout_seconds"`
+	MaxOutputBytes        int       `json:"max_output_bytes"`
+	AllowPortForward      bool      `json:"allow_port_forward"`
+	PortForwardMaxSeconds int       `json:"port_forward_max_seconds"`
+}
+
+type Context struct {
+	Name               string   `json:"name"`
+	DefaultNamespace   string   `json:"default_namespace"`
+	Namespaces         []string `json:"namespaces"`
+	AllowClusterScoped bool     `json:"allow_cluster_scoped"`
+	AllowPortForward   bool     `json:"allow_port_forward"`
+}
+
+func (k Kubectl) Scopes() []Kubectl {
+	if len(k.Contexts) == 0 {
+		return []Kubectl{k}
+	}
+	out := make([]Kubectl, 0, len(k.Contexts))
+	for _, scope := range k.Contexts {
+		v := k
+		v.Contexts = nil
+		v.Context, v.DefaultNamespace, v.Namespaces = scope.Name, scope.DefaultNamespace, scope.Namespaces
+		v.AllowClusterScoped, v.AllowPortForward = scope.AllowClusterScoped, scope.AllowPortForward
+		out = append(out, v)
+	}
+	return out
 }
 
 type Redaction struct {
@@ -85,23 +111,34 @@ func Decode(b []byte, v any) error {
 
 func (c *Config) Validate() error {
 	k := &c.Kubectl
-	if !filepath.IsAbs(k.Binary) || !filepath.IsAbs(k.Kubeconfig) || k.Context == "" || len(k.Context) > 253 {
-		return errors.New("require absolute binary and kubeconfig paths and a context of 1..253 bytes")
+	if !filepath.IsAbs(k.Binary) || !filepath.IsAbs(k.Kubeconfig) {
+		return errors.New("require absolute binary and kubeconfig paths")
 	}
-	if len(k.Namespaces) == 0 || len(k.Namespaces) > 100 || !Namespace(k.DefaultNamespace) {
-		return errors.New("require 1..100 namespaces and a valid default_namespace")
+	if len(k.Contexts) > 100 {
+		return errors.New("at most 100 contexts are permitted")
 	}
-	found := false
-	for _, ns := range k.Namespaces {
-		if !Namespace(ns) {
-			return errors.New("invalid namespace in configuration")
+	if len(k.Contexts) > 0 && (k.Context != "" || k.DefaultNamespace != "" || len(k.Namespaces) != 0 || k.AllowClusterScoped || k.AllowPortForward) {
+		return errors.New("contexts cannot be combined with single-context settings")
+	}
+	seen := map[string]bool{}
+	for _, scope := range k.Scopes() {
+		if scope.Context == "" || len(scope.Context) > 253 || strings.IndexFunc(scope.Context, unicode.IsControl) >= 0 || seen[scope.Context] {
+			return errors.New("require unique context names of 1..253 bytes without control characters")
 		}
-		if ns == k.DefaultNamespace {
-			found = true
+		seen[scope.Context] = true
+		if len(scope.Namespaces) == 0 || len(scope.Namespaces) > 100 || !Namespace(scope.DefaultNamespace) {
+			return errors.New("require 1..100 namespaces and a valid default_namespace per context")
 		}
-	}
-	if !found {
-		return errors.New("default_namespace must be in namespaces")
+		namespaces := map[string]bool{}
+		for _, ns := range scope.Namespaces {
+			if !Namespace(ns) || namespaces[ns] {
+				return errors.New("invalid or duplicate namespace in configuration")
+			}
+			namespaces[ns] = true
+		}
+		if !namespaces[scope.DefaultNamespace] {
+			return errors.New("default_namespace must be in namespaces")
+		}
 	}
 	if k.TimeoutSeconds == 0 {
 		k.TimeoutSeconds = 30

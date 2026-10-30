@@ -1,19 +1,21 @@
 # Command examples
 
-Use the `toolbox` executable. Replace `apps`, `api`, `api-0`, and `app` with your namespace, deployment, pod, and container names.
+Use the `toolbox` executable with an approved `apps-reader` context. Outputs below are illustrative. Replace `apps`, `api`, `api-0`, and `app` with your namespace, deployment, pod, and container names.
 
 Examples 4–6 show `tools/call` requests after session initialization. Use a configured [MCP client](clients.md) to send them. Successful output blocks show `result.structuredContent`. The error block shows `result.content` and `result.isError`. Transport metadata is omitted.
 
 ## 1. List pods with the CLI
 
 ```sh
-toolbox kubectl get pods -n apps
+toolbox kubectl get pods --context apps-reader -A -o json
 ```
 
 Output:
 
 ```json
 {
+  "context": "apps-reader",
+  "namespaces": ["apps"],
   "data": {
     "apiVersion": "v1",
     "items": [
@@ -30,7 +32,7 @@ Output:
         }
       }
     ],
-    "kind": "PodList"
+    "kind": "List"
   },
   "redactions": 0,
   "untrusted": true
@@ -40,13 +42,14 @@ Output:
 ## 2. Read deployment status with the CLI
 
 ```sh
-toolbox kubectl get deployments api -n apps
+toolbox kubectl get deployments api --context apps-reader -n apps
 ```
 
 Output:
 
 ```json
 {
+  "context": "apps-reader",
   "data": {
     "apiVersion": "apps/v1",
     "kind": "Deployment",
@@ -67,13 +70,14 @@ Output:
 ## 3. Read sanitized logs with the CLI
 
 ```sh
-toolbox kubectl logs api-0 -n apps -c app --tail 20 --since 10m
+toolbox kubectl logs api-0 --context apps-reader -n apps -c app --tail 20 --since 10m
 ```
 
 Output:
 
 ```json
 {
+  "context": "apps-reader",
   "redactions": 1,
   "text": "INFO ready\n[WITHHELD: ambiguous log fragment]\nINFO request complete\n",
   "untrusted": true,
@@ -93,6 +97,7 @@ The middle input line was `request_body={"customer":"synthetic-customer"}`. Tool
   "params": {
     "name": "kubectl_get",
     "arguments": {
+      "context": "apps-reader",
       "namespace": "apps",
       "resource": "pods",
       "selector": "app=api"
@@ -105,6 +110,7 @@ Output:
 
 ```json
 {
+  "context": "apps-reader",
   "data": {
     "apiVersion": "v1",
     "items": [
@@ -138,6 +144,7 @@ Output:
   "params": {
     "name": "kubectl_logs",
     "arguments": {
+      "context": "apps-reader",
       "container": "app",
       "namespace": "apps",
       "pod": "api-0",
@@ -153,6 +160,7 @@ Output:
 
 ```json
 {
+  "context": "apps-reader",
   "redactions": 1,
   "text": "{\"level\":\"error\",\"message\":\"connection refused\",\"password\":\"[REDACTED]\"}\n",
   "untrusted": true
@@ -169,6 +177,7 @@ Output:
   "params": {
     "name": "kubectl_get",
     "arguments": {
+      "context": "apps-reader",
       "namespace": "apps",
       "resource": "secrets"
     }
@@ -200,6 +209,6 @@ Toolbox rejects this request before invoking kubectl.
 | `1` | Denied request, failed tool execution, or transport failure |
 | `2` | Invalid command or configuration |
 
-Successful reads return `data` or `text`. Empty log output may omit `text`. Failed tool execution returns `error` and optional sanitized `diagnostics`. Partial standard output is discarded. `redactions` counts replacements. `withheld_lines` counts replaced ambiguous lines. `untrusted` marks cluster output as untrusted data.
+Successful reads identify `context` and return `data` or `text`. `-o json` preserves this result envelope. `-A` lists only approved namespaces and reports them in `namespaces`. Use MCP `all_namespaces: true` for the same scope. Empty log output may omit `text`. Failed tool execution returns `error` and optional sanitized `diagnostics`. Partial standard output is discarded. `redactions` counts replacements. `withheld_lines` counts replaced ambiguous lines. `untrusted` marks cluster output as untrusted data.
 
 Run `toolbox --help` for supported flags. There is no arbitrary flag forwarding.

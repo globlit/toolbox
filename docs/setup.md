@@ -25,7 +25,7 @@ The examples use these locations and names. Replace them before running the comm
 
 Reuse the existing ServiceAccount, Role, and RoleBinding. Do not apply the example manifests if those resources already provide the required access.
 
-The kubeconfig credential determines the Kubernetes identity. Its `users[].name` is a local reference, not a service-account assignment. The selected context links that reference to a cluster. Toolbox uses the configured context and namespace list rather than the kubeconfig's current context or default namespace.
+The kubeconfig credential determines the Kubernetes identity. Its `users[].name` is a local reference, not a service-account assignment. The selected context links that reference to a cluster. Toolbox uses approved contexts and namespace lists. It ignores the kubeconfig's current context and default namespace.
 
 List context names without printing credentials:
 
@@ -97,6 +97,52 @@ Save this JSON at the approved Toolbox configuration path:
 
 Set absolute file paths. Include `default_namespace` in `namespaces`. Namespace entries restrict Toolbox requests but grant no Kubernetes permissions. Leave cluster-scoped access disabled unless the operator approves it and provides the corresponding permissions.
 
+### Multiple contexts
+
+Use the [multiple-context configuration](../config/toolbox.multicontext.example.json) for one kubeconfig with several approved contexts. Replace the single-context fields (`context`, `default_namespace`, `namespaces`, `allow_cluster_scoped`, `allow_port_forward`) with `contexts`:
+
+```json
+{
+  "contexts": [
+    {
+      "name": "prod-a",
+      "default_namespace": "apps",
+      "namespaces": ["apps", "observability"],
+      "allow_cluster_scoped": false,
+      "allow_port_forward": false
+    },
+    {
+      "name": "prod-b",
+      "default_namespace": "billing",
+      "namespaces": ["billing"],
+      "allow_cluster_scoped": false,
+      "allow_port_forward": false
+    }
+  ]
+}
+```
+
+Match each `name` to an existing kubeconfig context. Configure 1–100 contexts with 1–100 unique namespaces each. Rebuild after editing the configuration.
+
+```sh
+toolbox kubectl contexts
+toolbox kubectl get pods --context prod-a -A -o json
+toolbox kubectl --context prod-b get pods -n billing
+toolbox kubectl logs api-0 --context prod-a -n apps
+```
+
+For MCP, call `kubectl_contexts` to list approved contexts. Select a context in each read, resource-catalog, or tunnel-start request:
+
+```json
+{"name":"kubectl_get","arguments":{"context":"prod-a","resource":"pods","all_namespaces":true}}
+```
+
+Multiple configured contexts require explicit selection. One configured context remains the default. Requests do not change kubeconfig or a shared active context. Results identify the selected context. Tunnel status remains tied to its creation context.
+
+`-A` / `--all-namespaces` combines lists from approved namespaces in the selected context. Results report those namespaces. It rejects `-n`, object names, and cluster-scoped resources. A failed or incomplete namespace read discards the combined data. The request shares one timeout and output budget across namespaces.
+
+`-o json` / `--output=json` accepts the existing sanitized result envelope, including `data`, `context`, and redaction counts. Other output formats remain unsupported. MCP already returns JSON.
+
 ## 4. Build and verify
 
 Create the output directory with operator-controlled permissions. Run this command from the source checkout:
@@ -145,4 +191,4 @@ If you need a new identity, review the [kubeconfig template](../config/reader.ku
 
 ## Optional tunnels
 
-Set `kubectl.allow_port_forward` to `true` to permit loopback tunnels. Set `kubectl.port_forward_max_seconds` to the maximum lifetime. The default is 300 seconds. Rebuild the gateway after configuration edits. Read [tunnel permissions and usage](raw-and-port-forward.md).
+Set `kubectl.allow_port_forward` to `true` to permit loopback tunnels. With `contexts`, set `allow_port_forward` on each approved context instead. Set `kubectl.port_forward_max_seconds` to the maximum lifetime. The default is 300 seconds. Rebuild the gateway after configuration edits. Read [tunnel permissions and usage](raw-and-port-forward.md).

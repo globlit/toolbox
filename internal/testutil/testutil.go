@@ -117,3 +117,18 @@ func BinaryHash(t testing.TB, path string) string {
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
+
+func MultiContextConfig(t testing.TB) config.Config {
+	t.Helper()
+	c := Config(t)
+	c.Kubectl.Context, c.Kubectl.DefaultNamespace, c.Kubectl.Namespaces = "", "", nil
+	c.Kubectl.Contexts = []config.Context{
+		{Name: "prod-a", DefaultNamespace: "apps", Namespaces: []string{"apps", "observability"}, AllowPortForward: true},
+		{Name: "prod-b", DefaultNamespace: "billing", Namespaces: []string{"billing"}},
+	}
+	b := []byte(`{"apiVersion":"v1","kind":"Config","current-context":"unapproved","clusters":[{"name":"a","cluster":{"server":"https://127.0.0.1:1"}},{"name":"b","cluster":{"server":"https://127.0.0.1:2"}}],"users":[{"name":"a","user":{"token":"credential-a-canary"}},{"name":"b","user":{"token":"credential-b-canary"}}],"contexts":[{"name":"prod-a","context":{"cluster":"a","user":"a"}},{"name":"prod-b","context":{"cluster":"b","user":"b"}},{"name":"unapproved","context":{"cluster":"a","user":"a"}}]}`)
+	if err := os.WriteFile(c.Kubectl.Kubeconfig, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}

@@ -19,6 +19,7 @@ type executor interface {
 }
 type Service struct {
 	settings      config.Kubectl
+	contexts      map[string]*Service
 	runner        executor
 	sanitizer     *sanitize.Sanitizer
 	forwardRunner *runner.Runner
@@ -27,6 +28,8 @@ type Service struct {
 	closed        bool
 }
 type Result struct {
+	Context       string          `json:"context"`
+	Namespaces    []string        `json:"namespaces,omitempty"`
 	Data          json.RawMessage `json:"data,omitempty"`
 	Text          string          `json:"text,omitempty"`
 	Diagnostics   string          `json:"diagnostics,omitempty"`
@@ -40,27 +43,37 @@ func New(c config.Config) (*Service, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
-	credentials, literals, err := credentialSnapshot(c.Kubectl)
-	if err != nil {
-		return nil, err
-	}
-	s, err := sanitize.New(c.Redaction, literals)
-	if err != nil {
-		return nil, err
-	}
-	timeout := time.Duration(c.Kubectl.TimeoutSeconds) * time.Second
-	setup := func(dir string) ([]string, []string, error) {
-		path := filepath.Join(dir, "kubeconfig.json")
-		if err := os.WriteFile(path, credentials, 0600); err != nil {
-			return nil, nil, err
+	root := &Service{settings: c.Kubectl, contexts: make(map[string]*Service), forwards: make(map[string]*forwardSession)}
+	pool := runner.NewPool()
+	var allLiterals []string
+	for _, k := range c.Kubectl.Scopes() {
+		credentials, literals, err := credentialSnapshot(k)
+		if err != nil {
+			return nil, err
 		}
-		return []string{"--kubeconfig=" + path, "--context=toolbox", "--cache-dir=" + filepath.Join(dir, "cache"), "--request-timeout=" + timeout.String()}, []string{"KUBECTL_KUBERC=false", "KUBERC=off"}, nil
+		allLiterals = append(allLiterals, literals...)
+		timeout := time.Duration(k.TimeoutSeconds) * time.Second
+		setup := func(dir string) ([]string, []string, error) {
+			path := filepath.Join(dir, "kubeconfig.json")
+			if err := os.WriteFile(path, credentials, 0600); err != nil {
+				return nil, nil, err
+			}
+			return []string{"--kubeconfig=" + path, "--context=toolbox", "--cache-dir=" + filepath.Join(dir, "cache"), "--request-timeout=" + timeout.String()}, []string{"KUBECTL_KUBERC=false", "KUBERC=off"}, nil
+		}
+		r, err := pool.NewRunner(k.Binary, k.ExecutableSHA256, setup, timeout, k.MaxOutputBytes)
+		if err != nil {
+			return nil, err
+		}
+		root.contexts[k.Context] = &Service{settings: k, runner: r, forwardRunner: r}
 	}
-	r, err := runner.New(c.Kubectl.Binary, c.Kubectl.ExecutableSHA256, setup, timeout, c.Kubectl.MaxOutputBytes)
+	san, err := sanitize.New(c.Redaction, allLiterals)
 	if err != nil {
 		return nil, err
 	}
-	return &Service{settings: c.Kubectl, runner: r, sanitizer: s, forwardRunner: r, forwards: make(map[string]*forwardSession)}, nil
+	for _, scoped := range root.contexts {
+		scoped.sanitizer = san
+	}
+	return root, nil
 }
 
 func (s *Service) Close() {
@@ -76,33 +89,46 @@ func (s *Service) Close() {
 	}
 }
 
-func (s *Service) Resources() []Resource { return Catalog(s.settings) }
-func (s *Service) Namespaces() []string  { return append([]string{}, s.settings.Namespaces...) }
 func (s *Service) Get(ctx context.Context, in GetInput) (Result, error) {
-	args, err := getArgs(s.settings, in)
+	scoped, err := s.selectContext(in.Context)
 	if err != nil {
 		return Result{}, err
 	}
-	return s.execute(ctx, args, true)
+	if in.AllNamespaces {
+		return scoped.getAll(ctx, in)
+	}
+	args, err := getArgs(scoped.settings, in)
+	if err != nil {
+		return Result{}, err
+	}
+	return scoped.execute(ctx, args, true)
 }
 func (s *Service) Raw(ctx context.Context, in RawInput) (Result, error) {
-	args, err := rawArgs(s.settings, in)
+	scoped, err := s.selectContext(in.Context)
 	if err != nil {
 		return Result{}, err
 	}
-	return s.execute(ctx, args, true)
+	args, err := rawArgs(scoped.settings, in)
+	if err != nil {
+		return Result{}, err
+	}
+	return scoped.execute(ctx, args, true)
 }
 func (s *Service) Logs(ctx context.Context, in LogsInput) (Result, error) {
-	args, err := logsArgs(s.settings, in)
+	scoped, err := s.selectContext(in.Context)
 	if err != nil {
 		return Result{}, err
 	}
-	return s.execute(ctx, args, false)
+	args, err := logsArgs(scoped.settings, in)
+	if err != nil {
+		return Result{}, err
+	}
+	return scoped.execute(ctx, args, false)
 }
 
 func (s *Service) execute(ctx context.Context, args []string, structured bool) (Result, error) {
 	r, runErr := s.runner.Run(ctx, args)
-	result := Result{Untrusted: true}
+	result := Result{Context: s.settings.Context, Untrusted: true}
 	var report sanitize.Report
 	result.Diagnostics, report = s.sanitizer.Text(r.Stderr)
 	result.Redactions += report.Redactions
@@ -127,6 +153,10 @@ func (s *Service) execute(ctx context.Context, args []string, structured bool) (
 		result.Redactions += report.Redactions
 		result.WithheldLines += report.WithheldLines
 	}
+	return s.checkResult(result)
+}
+
+func (s *Service) checkResult(result Result) (Result, error) {
 	encoded, err := json.Marshal(result)
 	if err != nil || len(encoded) > s.settings.MaxOutputBytes {
 		return Result{}, errors.New("sanitized output exceeded the limit. Response discarded. Narrow the query")

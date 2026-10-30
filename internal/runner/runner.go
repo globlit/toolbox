@@ -33,7 +33,16 @@ type Runner struct {
 	slots   chan struct{}
 }
 
+type Pool struct{ slots chan struct{} }
+
+func NewPool() *Pool { return &Pool{slots: make(chan struct{}, 2)} }
+
 func New(binary, digest string, setup Setup, timeout time.Duration, limit int) (*Runner, error) {
+	return NewPool().NewRunner(binary, digest, setup, timeout, limit)
+}
+
+// NewRunner shares the pool's two process slots across contexts and tunnels.
+func (pool *Pool) NewRunner(binary, digest string, setup Setup, timeout time.Duration, limit int) (*Runner, error) {
 	if !filepath.IsAbs(binary) {
 		return nil, errors.New("tool binary must be an absolute path")
 	}
@@ -52,7 +61,7 @@ func New(binary, digest string, setup Setup, timeout time.Duration, limit int) (
 	if err != nil || len(expected) != sha256.Size {
 		return nil, errors.New("tool executable digest is missing or invalid")
 	}
-	r := &Runner{binary: path, digest: expected, setup: setup, timeout: timeout, limit: limit, slots: make(chan struct{}, 2)}
+	r := &Runner{binary: path, digest: expected, setup: setup, timeout: timeout, limit: limit, slots: pool.slots}
 	if err := r.verifyExecutable(); err != nil {
 		return nil, err
 	}

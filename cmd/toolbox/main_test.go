@@ -71,7 +71,7 @@ func TestStdioEndToEnd(t *testing.T) {
 	}
 	defer cs.Close()
 	list, err := cs.ListTools(ctx, nil)
-	if err != nil || len(list.Tools) != 8 {
+	if err != nil || len(list.Tools) != 9 {
 		t.Fatal(list, err)
 	}
 	r, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "kubectl_logs", Arguments: map[string]any{"pod": "api"}})
@@ -145,5 +145,41 @@ func TestStdioEndToEnd(t *testing.T) {
 	var active, expired kubectl.ForwardResult
 	if decoder.Decode(&active) != nil || decoder.Decode(&expired) != nil || active.Status != "active" || expired.Status != "expired" {
 		t.Fatal(string(output))
+	}
+}
+
+func TestProvisionedMultipleContexts(t *testing.T) {
+	binary, _ := testutil.BuildGateway(t, testutil.MultiContextConfig(t))
+	out, err := exec.Command(binary, "kubectl", "get", "pods", "--context", "prod-a", "-A", "-o", "json").CombinedOutput()
+	if err != nil || !strings.Contains(string(out), `"context":"prod-a"`) || !strings.Contains(string(out), `"namespaces":["apps","observability"]`) || strings.Contains(string(out), "canary") {
+		t.Fatal(string(out), err)
+	}
+	for _, args := range [][]string{
+		{"kubectl", "get", "pods"},
+		{"kubectl", "get", "pods", "--context", "unapproved", "-A"},
+		{"kubectl", "get", "pods", "--context", "prod-b", "-n", "apps"},
+	} {
+		if out, err := exec.Command(binary, args...).CombinedOutput(); err == nil {
+			t.Fatal("provisioned policy bypass", args, string(out))
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client := mcp.NewClient(&mcp.Implementation{Name: "multi-context-smoke", Version: "1"}, nil)
+	cs, err := client.Connect(ctx, &mcp.CommandTransport{Command: exec.Command(binary, "mcp")}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+	for _, name := range []string{"prod-a", "prod-b"} {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "kubectl_get", Arguments: map[string]any{"resource": "pods", "context": name, "all_namespaces": true}})
+		if err != nil || result.IsError {
+			t.Fatal(result, err)
+		}
+		encoded, _ := json.Marshal(result.StructuredContent)
+		var r kubectl.Result
+		if json.Unmarshal(encoded, &r) != nil || r.Context != name || len(r.Namespaces) == 0 || strings.Contains(string(encoded), "canary") {
+			t.Fatal(string(encoded))
+		}
 	}
 }

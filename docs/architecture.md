@@ -16,7 +16,7 @@ config/                        operator templates
 deploy/kubernetes/             permission examples
 scripts/build/                 six unprovisioned platform builds
 scripts/provision/             operator build command
-docs/                          setup, examples, security, validation
+docs/                          setup, examples, security
 ```
 
 ## Requests
@@ -31,9 +31,9 @@ The runner executes an absolute kubectl path without a shell. The service saniti
 
 The operator build records the approved configuration path and SHA-256 digests for configuration and kubectl. The runtime verifies configuration bytes before parsing them. The runner verifies kubectl before execution. An unprovisioned build rejects operational requests.
 
-The provisioning package is absent from the runtime dependency graph. Agent requests cannot select configuration, credentials, contexts, or executables.
+The provisioning package is absent from the runtime dependency graph. Agent requests select only operator-approved contexts. They cannot replace configuration, credentials, or executables.
 
-The credential loader converts the selected context into a minimal snapshot with static credentials. Each subprocess receives a private temporary kubeconfig. Toolbox writes no persistent raw-output logs. Read [security](security.md) for filesystem and process-isolation limits.
+The credential loader creates a separate static credential snapshot for every approved context. Requests select a snapshot without changing shared configuration. All contexts share the two-process limit and credential redaction rules. Each subprocess receives a private temporary kubeconfig. Toolbox writes no persistent raw-output logs. Read [security](security.md) for filesystem and process-isolation limits.
 
 ## Future glab integration
 

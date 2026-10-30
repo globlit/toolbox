@@ -7,7 +7,7 @@ Toolbox gives artificial intelligence (AI) agents Kubernetes reads and optional 
 Use Go 1.26.10 or newer to build Toolbox. Install kubectl separately.
 
 1. Follow [setup with an existing kubeconfig](docs/setup.md). Reuse the existing ServiceAccount, Role, and RoleBinding if they grant the required read-only access.
-2. Configure the approved kubectl path, kubeconfig path, context, and namespaces.
+2. Configure the approved kubectl path, kubeconfig path, approved contexts, and namespaces.
 3. Run the operator build from this checkout. Replace these paths with your approved locations. Create the output directory first.
 
 ```sh
@@ -21,12 +21,12 @@ Ordinary builds cannot execute requests. Runtime `--config` and `KUBECONFIG` ove
 Run the provisioned executable:
 
 ```sh
-/opt/toolbox/bin/toolbox kubectl get pods -n apps
+/opt/toolbox/bin/toolbox kubectl get pods --context apps-reader -A -o json
 /opt/toolbox/bin/toolbox kubectl get --raw /api/v1/namespaces/apps/pods
 /opt/toolbox/bin/toolbox kubectl logs api-0 -n apps --tail 20 --since 10m
 ```
 
-Read [raw GET and port-forward usage](docs/raw-and-port-forward.md).
+Use `-A` for all approved namespaces. Read [context configuration](docs/setup.md#multiple-contexts) and [raw GET and port-forward usage](docs/raw-and-port-forward.md).
 
 Read [six CLI and MCP examples with outputs](docs/examples.md). The examples cover pod lists, deployment status, sanitized logs, previous container logs, and denied Secret access.
 
