@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -23,6 +24,8 @@ func Hook() {
 	}
 	args := os.Args[1:]
 	switch {
+	case slices.Contains(args, "port-forward"):
+		forwardFixture(args)
 	case slices.Contains(args, "overflow"):
 		fmt.Print(strings.Repeat("secretmaterial", 10000))
 	case slices.Contains(args, "sleep"):
@@ -44,6 +47,46 @@ func Hook() {
 		os.Exit(9)
 	}
 	os.Exit(0)
+}
+
+func forwardFixture(args []string) {
+	index := slices.Index(args, "port-forward")
+	if index < 0 || len(args) < index+6 {
+		os.Exit(9)
+	}
+	target := args[index+4]
+	if target == "pods/failure" {
+		fmt.Fprintln(os.Stderr, "password=forward-canary")
+		os.Exit(1)
+	}
+	if target == "pods/slow" {
+		time.Sleep(10 * time.Second)
+	}
+	if target == "pods/overflow" {
+		fmt.Print(strings.Repeat("forward-canary", 10000))
+		time.Sleep(10 * time.Second)
+	}
+	var listeners []net.Listener
+	for _, mapping := range args[index+5:] {
+		local, remote, _ := strings.Cut(mapping, ":")
+		listener, err := net.Listen("tcp", "127.0.0.1:"+local)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "password=bind-canary")
+			os.Exit(1)
+		}
+		listeners = append(listeners, listener)
+		fmt.Printf("Forwarding from %s -> %s\n", listener.Addr(), remote)
+		go func() {
+			for {
+				conn, err := listener.Accept()
+				if err != nil {
+					return
+				}
+				go func() { defer conn.Close(); io.Copy(conn, conn) }()
+			}
+		}()
+	}
+	select {}
 }
 
 func Config(t testing.TB) config.Config {

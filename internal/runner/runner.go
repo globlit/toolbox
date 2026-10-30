@@ -85,28 +85,69 @@ func (s *stream) Write(p []byte) (int, error) {
 	return s.b.Write(p)
 }
 
+// Process provides bounded output and cancellation for one subprocess.
+type Process struct {
+	cmd            *exec.Cmd
+	cancel         context.CancelFunc
+	capture        *capture
+	stdout, stderr *stream
+	done           chan struct{}
+	result         Result
+	err            error
+	deadline       time.Time
+}
+
+func (p *Process) Deadline() time.Time { return p.deadline }
+
+func (p *Process) Done() <-chan struct{} { return p.done }
+func (p *Process) Stop()                 { p.cancel(); <-p.done }
+func (p *Process) Wait() (Result, error) { <-p.done; return p.result, p.err }
+func (p *Process) Snapshot() Result {
+	p.capture.mu.Lock()
+	defer p.capture.mu.Unlock()
+	if p.capture.overflow {
+		return Result{}
+	}
+	return Result{bytes.Clone(p.stdout.b.Bytes()), bytes.Clone(p.stderr.b.Bytes())}
+}
+
 func (r *Runner) Run(parent context.Context, args []string) (Result, error) {
+	p, err := r.Start(parent, args, r.timeout)
+	if err != nil {
+		return Result{}, err
+	}
+	return p.Wait()
+}
+
+func (r *Runner) Start(parent context.Context, args []string, duration time.Duration) (*Process, error) {
+	if duration <= 0 {
+		return nil, errors.New("invalid process duration")
+	}
 	select {
 	case r.slots <- struct{}{}:
-		defer func() { <-r.slots }()
 	default:
-		return Result{}, errors.New("toolbox is busy. Retry later")
+		return nil, errors.New("toolbox is busy. Retry later")
 	}
-	ctx, cancel := context.WithTimeout(parent, r.timeout)
-	defer cancel()
+	ctx, cancel := context.WithTimeout(parent, duration)
 	dir, err := os.MkdirTemp("", "toolbox-")
-	if err != nil {
-		return Result{}, errors.New("cannot create private execution directory")
+	cleanup := func() {
+		cancel()
+		if dir != "" {
+			os.RemoveAll(dir)
+		}
+		<-r.slots
 	}
-	defer os.RemoveAll(dir)
+	if err != nil {
+		cleanup()
+		return nil, errors.New("cannot create private execution directory")
+	}
 	prefix, environment, err := r.setup(dir)
 	if err != nil {
-		return Result{}, errors.New("cannot prepare isolated tool environment")
+		cleanup()
+		return nil, errors.New("cannot prepare isolated tool environment")
 	}
-	argv := append(prefix, args...)
-	cmd := exec.CommandContext(ctx, r.binary, argv...)
+	cmd := exec.CommandContext(ctx, r.binary, append(prefix, args...)...)
 	cmd.Dir = dir
-	// Do not inherit KUBECONFIG, proxy, loader, cloud, debugging or plugin variables.
 	cmd.Env = []string{"HOME=" + dir, "USERPROFILE=" + dir, "TMPDIR=" + dir, "TMP=" + dir, "TEMP=" + dir, "PATH=", "LANG=C.UTF-8", "LC_ALL=C.UTF-8", "NO_COLOR=1"}
 	if runtime.GOOS == "windows" {
 		cmd.Env = append(cmd.Env, "SystemRoot="+os.Getenv("SystemRoot"))
@@ -115,28 +156,39 @@ func (r *Runner) Run(parent context.Context, args []string) (Result, error) {
 	cmd.WaitDelay = time.Second
 	configureProcess(cmd)
 	c := &capture{limit: r.limit, cancel: cancel}
-	out := &stream{c: c}
-	stderr := &stream{c: c}
-	cmd.Stdout = out
-	cmd.Stderr = stderr
+	p := &Process{cmd: cmd, cancel: cancel, capture: c, stdout: &stream{c: c}, stderr: &stream{c: c}, done: make(chan struct{})}
+	p.deadline, _ = ctx.Deadline()
+	cmd.Stdout, cmd.Stderr = p.stdout, p.stderr
 	if err := r.verifyExecutable(); err != nil {
-		return Result{}, err
+		cleanup()
+		return nil, err
 	}
-	err = cmd.Run()
-	if c.overflow {
-		return Result{}, errors.New("output exceeded the limit. Response discarded. Narrow the query or reduce tail")
+	if err := cmd.Start(); err != nil {
+		cleanup()
+		return nil, errors.New("tool execution failed")
 	}
-	if ctx.Err() != nil {
-		return Result{}, errors.New("request cancelled or timed out. Partial output discarded")
-	}
-	result := Result{out.b.Bytes(), stderr.b.Bytes()}
-	if err != nil {
-		if _, ok := err.(*exec.ExitError); ok {
-			return result, errors.New("tool request failed")
+	go func() {
+		err := cmd.Wait()
+		switch {
+		case c.overflow:
+			p.err = errors.New("output exceeded the limit. Response discarded. Narrow the query or reduce tail")
+		case ctx.Err() != nil:
+			p.err = errors.New("request cancelled or timed out. Partial output discarded")
+		default:
+			p.result = p.Snapshot()
+			if err != nil {
+				if _, ok := err.(*exec.ExitError); ok {
+					p.err = errors.New("tool request failed")
+				} else {
+					p.result = Result{}
+					p.err = errors.New("tool execution failed")
+				}
+			}
 		}
-		return Result{}, errors.New("tool execution failed")
-	}
-	return result, nil
+		cleanup()
+		close(p.done)
+	}()
+	return p, nil
 }
 
 // File permissions must also prevent replacement between verification and exec.

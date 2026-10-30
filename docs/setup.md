@@ -142,3 +142,7 @@ Provision private Windows access-control lists for credential files and temporar
 | Expired token | Replace it through the operator's credential process. Toolbox cannot refresh it. |
 
 If you need a new identity, review the [kubeconfig template](../config/reader.kubeconfig.example.yaml) and [namespaced RBAC example](../deploy/kubernetes/reader.yaml). Use the [optional cluster permissions](../deploy/kubernetes/cluster-reader.optional.yaml) only when required.
+
+## Optional tunnels
+
+Set `kubectl.allow_port_forward` to `true` to permit loopback tunnels. Set `kubectl.port_forward_max_seconds` to the maximum lifetime. The default is 300 seconds. Rebuild the gateway after configuration edits. Read [tunnel permissions and usage](raw-and-port-forward.md).

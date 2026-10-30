@@ -76,3 +76,39 @@ func TestRBACMatchesReadCatalog(t *testing.T) {
 		}
 	}
 }
+
+func TestOptionalForwardRBAC(t *testing.T) {
+	b, err := os.ReadFile("../../../deploy/kubernetes/port-forward.optional.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoder := yaml.NewDecoder(strings.NewReader(string(b)))
+	var role struct {
+		Kind     string `yaml:"kind"`
+		Metadata struct {
+			Namespace string `yaml:"namespace"`
+		} `yaml:"metadata"`
+		Rules []struct {
+			Groups    []string `yaml:"apiGroups"`
+			Resources []string `yaml:"resources"`
+			Verbs     []string `yaml:"verbs"`
+		} `yaml:"rules"`
+	}
+	if decoder.Decode(&role) != nil || role.Kind != "Role" || role.Metadata.Namespace != "apps" || len(role.Rules) != 1 {
+		t.Fatal(role)
+	}
+	rule := role.Rules[0]
+	if len(rule.Groups) != 1 || rule.Groups[0] != "" || len(rule.Resources) != 1 || rule.Resources[0] != "pods/portforward" || strings.Join(rule.Verbs, ",") != "get,create" {
+		t.Fatal(rule)
+	}
+	var binding struct {
+		Kind     string `yaml:"kind"`
+		Metadata struct {
+			Namespace string `yaml:"namespace"`
+		} `yaml:"metadata"`
+		RoleRef struct{ Kind, Name string } `yaml:"roleRef"`
+	}
+	if decoder.Decode(&binding) != nil || binding.Kind != "RoleBinding" || binding.Metadata.Namespace != "apps" || binding.RoleRef.Kind != "Role" || binding.RoleRef.Name != "toolbox-port-forward" {
+		t.Fatal(binding)
+	}
+}

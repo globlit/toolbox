@@ -1,18 +1,26 @@
 # Security model
 
-Toolbox restricts its command-line interface (CLI) and Model Context Protocol (MCP) server to catalog reads and finite pod logs. Sanitization reduces disclosure but cannot identify every secret.
+Toolbox restricts its command-line interface (CLI) and Model Context Protocol (MCP) server to approved reads and optional port-forward tunnels. Sanitization reduces disclosure but cannot identify every secret.
 
 ## Deployment boundaries
 
 Apply three controls:
 
-1. **Request restrictions.** Toolbox rejects writes, unsupported resources, subresources, raw paths, arbitrary flags, and multiple-resource requests. The catalog fixes API groups and versions. Missing API versions fail without fallback.
-2. **Cluster permissions.** Use a dedicated read-only identity. Kubernetes role-based access control (RBAC) grants are additive. Inspect all bindings affecting that identity. The example manifests exclude Secrets, ConfigMaps, mutation, exec, attach, proxy, port-forward, token creation, and impersonation. [RBAC reference](https://kubernetes.io/docs/reference/access-authn-authz/rbac/).
+1. **Request restrictions.** Toolbox rejects mutation commands, unsupported resources, arbitrary flags, and multiple-resource requests. Raw GET paths must match approved resource or discovery endpoints. Other subresources remain blocked. The catalog fixes API groups and versions. Missing API versions fail without fallback.
+2. **Cluster permissions.** Use a dedicated read-only identity. Kubernetes role-based access control (RBAC) grants are additive. Inspect all bindings affecting that identity. The reader manifests exclude Secrets, ConfigMaps, mutation, exec, attach, proxy, port-forward, token creation, and impersonation. The separate optional tunnel role grants only `get` and `create` on `pods/portforward`. [RBAC reference](https://kubernetes.io/docs/reference/access-authn-authz/rbac/).
 3. **Credential isolation.** Run the gateway under a separate account or container if the agent must not access raw credentials or outputs. Expose a fixed invocation over standard input/output. Block direct cluster access. Same-user execution does not enforce this isolation.
 
 Protect Toolbox, kubectl, configuration, credentials, dependencies, and their parent directories from agent modification. The approved configuration path and configuration/kubectl digests are compiled into the executable. Caller flags and environment variables cannot replace them. Configuration and kubectl updates require a new operator build.
 
 Toolbox assumes a trusted operating system, kubectl executable, and Kubernetes API server. API GET endpoints must obey Kubernetes read semantics. Toolbox cannot sandbox a compromised executable or malicious API extension. An agent able to replace the gateway or access privileged credentials directly can bypass this boundary.
+
+## Port forwarding
+
+Enable tunnels only when direct access to pod services is acceptable. Tunnel traffic can mutate services and expose secrets. Toolbox does not inspect or sanitize that traffic. Other local processes can connect to the loopback listener.
+
+Tunnels bind to `127.0.0.1`. They share the two-process limit with reads. Expiration, explicit stop, or normal gateway shutdown closes the subprocess. Forced gateway termination may leave a child process until its operating system terminates it. A separate supervisor or container must enforce cleanup after forced termination.
+
+Read [configuration and permissions](raw-and-port-forward.md).
 
 ## Credentials
 
@@ -47,7 +55,8 @@ Sanitization does not prevent prompt injection. MCP output is marked untrusted. 
 | Concurrent subprocesses per service | 2 | 2 |
 | Log tail | 200 lines | 2,000 lines |
 | Log lookback | 1 hour | 24 hours |
+| Tunnel lifetime | 300 seconds | 3,600 seconds |
 
 The serialized result must also fit the configured output limit. Narrow selectors or reduce the log tail when a response exceeds that limit.
 
-The synthetic fixture corpus covers OpenSearch, RabbitMQ, Kvrocks, CNPG/Postgres, Python, cert-manager, external-dns, Prometheus/Alertmanager, Fluent Bit, Cilium, CoreDNS, and generic workloads. `kubeseak` is treated as a workload label. These fixtures do not establish production format coverage. Read the [audit report](security-audit.md) and [validation record](validation.md).
+The synthetic fixture corpus covers OpenSearch, RabbitMQ, Kvrocks, CNPG/Postgres, Python, cert-manager, external-dns, Prometheus/Alertmanager, Fluent Bit, Cilium, CoreDNS, and generic workloads. `kubeseak` is treated as a workload label. These fixtures do not establish production format coverage.

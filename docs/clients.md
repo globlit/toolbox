@@ -77,6 +77,13 @@ Inspect the entry with `codex mcp list`. [Official OpenAI documentation](https:/
 | `kubectl_resources` | None | None |
 | `kubectl_get` | `resource` | `name`, `namespace`, `selector` |
 | `kubectl_logs` | `pod` | `namespace`, `container`, `previous`, `tail`, `since` |
+| `kubectl_raw` | `path` | None |
+| `kubectl_port_forward` | `target`, `ports` | `namespace`, `duration_seconds` |
+| `kubectl_port_forward_status` | `id` | None |
+| `kubectl_port_forward_stop` | `id` | None |
+| `kubectl_port_forward_list` | None | None |
+
+Read [raw GET and tunnel examples](raw-and-port-forward.md) for the new operations. Start and stop operations are not marked read-only.
 
 Read [request and result examples](examples.md). Clients initialize the MCP session before calling tools. Running `toolbox mcp` alone waits for protocol input and prints no interactive prompt.
 

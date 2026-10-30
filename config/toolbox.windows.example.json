@@ -4,10 +4,19 @@
     "kubeconfig": "C:\\ProgramData\\toolbox\\reader.kubeconfig",
     "context": "toolbox-reader",
     "default_namespace": "apps",
-    "namespaces": ["apps", "observability", "kube-system"],
+    "namespaces": [
+      "apps",
+      "observability",
+      "kube-system"
+    ],
     "allow_cluster_scoped": false,
     "timeout_seconds": 30,
-    "max_output_bytes": 1048576
+    "max_output_bytes": 1048576,
+    "allow_port_forward": false,
+    "port_forward_max_seconds": 300
   },
-  "redaction": {"literals": [], "patterns": []}
+  "redaction": {
+    "literals": [],
+    "patterns": []
+  }
 }

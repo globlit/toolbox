@@ -36,12 +36,13 @@ func TestMCPDiscoveryAndPolicy(t *testing.T) {
 			}
 			defer cs.Close()
 			list, err := cs.ListTools(ctx, nil)
-			if err != nil || len(list.Tools) != 3 {
+			if err != nil || len(list.Tools) != 8 {
 				t.Fatal(list, err)
 			}
 			for _, tool := range list.Tools {
-				if !tool.Annotations.ReadOnlyHint {
-					t.Fatal("missing read-only hint")
+				wantReadOnly := tool.Name != "kubectl_port_forward" && tool.Name != "kubectl_port_forward_stop"
+				if tool.Annotations.ReadOnlyHint != wantReadOnly {
+					t.Fatal("incorrect read-only hint", tool.Name)
 				}
 			}
 			for _, tc := range []struct {
@@ -51,6 +52,10 @@ func TestMCPDiscoveryAndPolicy(t *testing.T) {
 			}{
 				{"kubectl_get", map[string]any{"resource": "pods"}, false},
 				{"kubectl_logs", map[string]any{"pod": "api"}, false},
+				{"kubectl_raw", map[string]any{"path": "/api/v1/namespaces/apps/pods"}, false},
+				{"kubectl_raw", map[string]any{"path": "/api/v1/namespaces/apps/secrets"}, true},
+				{"kubectl_raw", map[string]any{"path": "/api/v1/namespaces/apps/pods", "method": "DELETE"}, true},
+				{"kubectl_port_forward", map[string]any{"target": "api", "ports": []string{":8080"}}, true},
 				{"kubectl_get", map[string]any{"resource": "secrets"}, true},
 				{"kubectl_get", map[string]any{"resource": "pods", "namespace": "other"}, true},
 				{"kubectl_get", map[string]any{"resource": "pods", "args": []string{"--raw=/"}}, true},

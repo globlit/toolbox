@@ -21,9 +21,11 @@ docs/                          setup, examples, security, validation
 
 ## Requests
 
-Both transports call `kubectl.Service`. The service validates each request against a fixed resource catalog. It generates an exact, versioned Kubernetes API path for `kubectl get --raw`. Callers cannot supply raw paths or additional flags. Fixed API groups prevent discovery from selecting a different resource with the same name.
+Both transports call `kubectl.Service`. The service validates each request against a fixed resource catalog. It generates an exact, versioned Kubernetes API path for `kubectl get --raw`. Raw requests must match approved resource or discovery paths. Callers cannot supply additional flags. Fixed API groups prevent discovery from selecting a different resource with the same name.
 
-The runner executes an absolute kubectl path without a shell. The service sanitizes the result before returning it to either transport. MCP read-only annotations describe these restrictions but do not enforce them.
+Port forwarding uses managed subprocesses with loopback listeners, bounded lifetimes, and stop/status operations. The service closes tunnels when the CLI or MCP process exits normally.
+
+The runner executes an absolute kubectl path without a shell. The service sanitizes read results before returning them. Tunnel traffic bypasses sanitization. MCP read-only annotations describe these restrictions but do not enforce them.
 
 ## Configuration
 

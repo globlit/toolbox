@@ -1,6 +1,6 @@
 # Toolbox
 
-Toolbox gives artificial intelligence (AI) agents read-only Kubernetes access through a command-line interface (CLI) or the Model Context Protocol (MCP). It sanitizes resource data, logs, and error output. Native executables support Linux, macOS, and Windows.
+Toolbox gives artificial intelligence (AI) agents Kubernetes reads and optional port forwarding through a command-line interface (CLI) or the Model Context Protocol (MCP). It sanitizes resource data, logs, and error output. Native executables support Linux, macOS, and Windows.
 
 ## Setup
 
@@ -22,8 +22,11 @@ Run the provisioned executable:
 
 ```sh
 /opt/toolbox/bin/toolbox kubectl get pods -n apps
+/opt/toolbox/bin/toolbox kubectl get --raw /api/v1/namespaces/apps/pods
 /opt/toolbox/bin/toolbox kubectl logs api-0 -n apps --tail 20 --since 10m
 ```
+
+Read [raw GET and port-forward usage](docs/raw-and-port-forward.md).
 
 Read [six CLI and MCP examples with outputs](docs/examples.md). The examples cover pod lists, deployment status, sanitized logs, previous container logs, and denied Secret access.
 
@@ -39,7 +42,7 @@ Read [client configuration](docs/clients.md) for project JSON, Windows paths, Cl
 
 ## Restrictions
 
-Toolbox permits catalog reads and finite pod logs. It rejects writes, Secrets, ConfigMaps, exec, proxy, port-forward, arbitrary commands, and raw paths. Run `toolbox kubectl resources` to inspect the catalog.
+Toolbox permits catalog reads, approved raw GET paths, and finite pod logs. It rejects mutation commands, Secrets, ConfigMaps, exec, proxy, and unknown endpoints. Optional port-forward tunnels can carry writes and unsanitized traffic. Run `toolbox kubectl resources` to inspect the catalog.
 
 Ambiguous log lines become `[WITHHELD: ambiguous log fragment]`. Independent neighboring records remain visible. Sanitization cannot identify every secret.
 

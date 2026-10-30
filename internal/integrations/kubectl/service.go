@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"toolbox/internal/config"
@@ -17,9 +18,13 @@ type executor interface {
 	Run(context.Context, []string) (runner.Result, error)
 }
 type Service struct {
-	settings  config.Kubectl
-	runner    executor
-	sanitizer *sanitize.Sanitizer
+	settings      config.Kubectl
+	runner        executor
+	sanitizer     *sanitize.Sanitizer
+	forwardRunner *runner.Runner
+	mu            sync.Mutex
+	forwards      map[string]*forwardSession
+	closed        bool
 }
 type Result struct {
 	Data          json.RawMessage `json:"data,omitempty"`
@@ -55,13 +60,33 @@ func New(c config.Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{c.Kubectl, r, s}, nil
+	return &Service{settings: c.Kubectl, runner: r, sanitizer: s, forwardRunner: r, forwards: make(map[string]*forwardSession)}, nil
+}
+
+func (s *Service) Close() {
+	s.mu.Lock()
+	s.closed = true
+	var processes []*runner.Process
+	for _, session := range s.forwards {
+		processes = append(processes, session.process)
+	}
+	s.mu.Unlock()
+	for _, process := range processes {
+		process.Stop()
+	}
 }
 
 func (s *Service) Resources() []Resource { return Catalog(s.settings) }
 func (s *Service) Namespaces() []string  { return append([]string{}, s.settings.Namespaces...) }
 func (s *Service) Get(ctx context.Context, in GetInput) (Result, error) {
 	args, err := getArgs(s.settings, in)
+	if err != nil {
+		return Result{}, err
+	}
+	return s.execute(ctx, args, true)
+}
+func (s *Service) Raw(ctx context.Context, in RawInput) (Result, error) {
+	args, err := rawArgs(s.settings, in)
 	if err != nil {
 		return Result{}, err
 	}

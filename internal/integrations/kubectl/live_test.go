@@ -119,6 +119,25 @@ func TestRealKubectlOnlyUsesGET(t *testing.T) {
 	}
 	t.Logf("observed read-only requests: %v", paths)
 	mu.Unlock()
+	for _, path := range []string{"/api/v1/namespaces/apps/pods?limit=10", "/api/v1"} {
+		result, err = s.Raw(context.Background(), RawInput{Path: path})
+		if err != nil || result.Error != "" || strings.Contains(string(result.Data), "CANARY") {
+			t.Fatal(result, err)
+		}
+	}
+	mu.Lock()
+	count = len(paths)
+	mu.Unlock()
+	for _, path := range []string{"/api/v1/namespaces/apps/pods/api/exec", "/api/v1/namespaces/apps/secrets", "/api/v1/namespaces/apps/pods?watch=true"} {
+		if _, err = s.Raw(context.Background(), RawInput{Path: path}); err == nil {
+			t.Fatal("raw denial failed", path)
+		}
+	}
+	mu.Lock()
+	if len(paths) != count {
+		t.Fatal("raw denial reached API")
+	}
+	mu.Unlock()
 	hideCore.Store(true)
 	result, err = s.Get(context.Background(), GetInput{Resource: "pods"})
 	if err == nil && result.Error == "" {

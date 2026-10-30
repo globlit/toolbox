@@ -1,0 +1,24 @@
+# Optional tunnel permissions. Review the namespace and ServiceAccount before applying.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: toolbox-port-forward
+  namespace: apps
+rules:
+  - apiGroups: [""]
+    resources: [pods/portforward]
+    verbs: [get, create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: toolbox-port-forward
+  namespace: apps
+subjects:
+  - kind: ServiceAccount
+    name: toolbox-reader
+    namespace: apps
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: toolbox-port-forward

@@ -20,15 +20,17 @@ type Config struct {
 
 type Kubectl struct {
 	// Supplied by the trusted build, never deserialized from operator/request JSON.
-	ExecutableSHA256   string   `json:"-"`
-	Binary             string   `json:"binary"`
-	Kubeconfig         string   `json:"kubeconfig"`
-	Context            string   `json:"context"`
-	DefaultNamespace   string   `json:"default_namespace"`
-	Namespaces         []string `json:"namespaces"`
-	AllowClusterScoped bool     `json:"allow_cluster_scoped"`
-	TimeoutSeconds     int      `json:"timeout_seconds"`
-	MaxOutputBytes     int      `json:"max_output_bytes"`
+	ExecutableSHA256      string   `json:"-"`
+	Binary                string   `json:"binary"`
+	Kubeconfig            string   `json:"kubeconfig"`
+	Context               string   `json:"context"`
+	DefaultNamespace      string   `json:"default_namespace"`
+	Namespaces            []string `json:"namespaces"`
+	AllowClusterScoped    bool     `json:"allow_cluster_scoped"`
+	TimeoutSeconds        int      `json:"timeout_seconds"`
+	MaxOutputBytes        int      `json:"max_output_bytes"`
+	AllowPortForward      bool     `json:"allow_port_forward"`
+	PortForwardMaxSeconds int      `json:"port_forward_max_seconds"`
 }
 
 type Redaction struct {
@@ -103,6 +105,12 @@ func (c *Config) Validate() error {
 	}
 	if k.TimeoutSeconds == 0 {
 		k.TimeoutSeconds = 30
+	}
+	if k.PortForwardMaxSeconds == 0 {
+		k.PortForwardMaxSeconds = 300
+	}
+	if k.PortForwardMaxSeconds < 1 || k.PortForwardMaxSeconds > 3600 {
+		return errors.New("port_forward_max_seconds must be from 1 to 3600")
 	}
 	if k.MaxOutputBytes == 0 {
 		k.MaxOutputBytes = 1 << 20

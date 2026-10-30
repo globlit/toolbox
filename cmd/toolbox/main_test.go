@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +14,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"toolbox/internal/integrations/kubectl"
 	"toolbox/internal/testutil"
 )
 
@@ -18,6 +22,8 @@ func init() { testutil.Hook() }
 
 func TestStdioEndToEnd(t *testing.T) {
 	c := testutil.Config(t)
+	c.Kubectl.AllowPortForward = true
+	c.Kubectl.PortForwardMaxSeconds = 5
 	binary, pinned := testutil.BuildGateway(t, c)
 	approved, err := os.ReadFile(pinned)
 	if err != nil {
@@ -65,7 +71,7 @@ func TestStdioEndToEnd(t *testing.T) {
 	}
 	defer cs.Close()
 	list, err := cs.ListTools(ctx, nil)
-	if err != nil || len(list.Tools) != 3 {
+	if err != nil || len(list.Tools) != 8 {
 		t.Fatal(list, err)
 	}
 	r, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "kubectl_logs", Arguments: map[string]any{"pod": "api"}})
@@ -79,5 +85,65 @@ func TestStdioEndToEnd(t *testing.T) {
 	r, err = cs.CallTool(ctx, &mcp.CallToolParams{Name: "kubectl_get", Arguments: map[string]any{"resource": "secrets"}})
 	if err == nil && !r.IsError {
 		t.Fatal("denied read succeeded over stdio")
+	}
+	r, err = cs.CallTool(ctx, &mcp.CallToolParams{Name: "kubectl_raw", Arguments: map[string]any{"path": "/api/v1/namespaces/apps/pods"}})
+	if err != nil || r.IsError {
+		t.Fatal(r, err)
+	}
+	b, _ = json.Marshal(r)
+	if strings.Contains(string(b), "canary") || !strings.Contains(string(b), "Running") {
+		t.Fatal(string(b))
+	}
+	start := func() kubectl.ForwardResult {
+		t.Helper()
+		r, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "kubectl_port_forward", Arguments: map[string]any{"target": "api", "ports": []string{":8080"}}})
+		if err != nil || r.IsError {
+			t.Fatal(r, err)
+		}
+		b, _ := json.Marshal(r.StructuredContent)
+		var forward kubectl.ForwardResult
+		if json.Unmarshal(b, &forward) != nil || forward.Status != "active" || len(forward.Ports) != 1 {
+			t.Fatal(string(b))
+		}
+		return forward
+	}
+	forward := start()
+	address := fmt.Sprintf("127.0.0.1:%d", forward.Ports[0].Local)
+	conn, err := net.DialTimeout("tcp", address, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.SetDeadline(time.Now().Add(time.Second))
+	conn.Write([]byte("test"))
+	echo := make([]byte, 4)
+	if _, err = io.ReadFull(conn, echo); err != nil || string(echo) != "test" {
+		t.Fatal(string(echo), err)
+	}
+	conn.Close()
+	r, err = cs.CallTool(ctx, &mcp.CallToolParams{Name: "kubectl_port_forward_stop", Arguments: map[string]any{"id": forward.ID}})
+	if err != nil || r.IsError {
+		t.Fatal(r, err)
+	}
+	if conn, err = net.DialTimeout("tcp", address, time.Second); err == nil {
+		conn.Close()
+		t.Fatal("stopped tunnel is listening")
+	}
+	forward = start()
+	address = fmt.Sprintf("127.0.0.1:%d", forward.Ports[0].Local)
+	if err = cs.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if conn, err = net.DialTimeout("tcp", address, time.Second); err == nil {
+		conn.Close()
+		t.Fatal("MCP exit left tunnel listening")
+	}
+	output, err := exec.Command(binary, "kubectl", "port-forward", "api", ":8080", "--duration=1s").CombinedOutput()
+	if err != nil {
+		t.Fatal(string(output), err)
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(output)))
+	var active, expired kubectl.ForwardResult
+	if decoder.Decode(&active) != nil || decoder.Decode(&expired) != nil || active.Status != "active" || expired.Status != "expired" {
+		t.Fatal(string(output))
 	}
 }

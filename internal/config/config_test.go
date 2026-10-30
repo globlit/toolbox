@@ -15,6 +15,16 @@ func TestStrictConfig(t *testing.T) {
 	if c.Kubectl.TimeoutSeconds != 30 || c.Kubectl.MaxOutputBytes != 1<<20 {
 		t.Fatal(c)
 	}
+	if c.Kubectl.AllowPortForward || c.Kubectl.PortForwardMaxSeconds != 300 {
+		t.Fatal("unsafe tunnel defaults", c)
+	}
+	for _, limit := range []int{-1, 3601} {
+		bad := c
+		bad.Kubectl.PortForwardMaxSeconds = limit
+		if bad.Validate() == nil {
+			t.Fatal("invalid tunnel limit accepted", limit)
+		}
+	}
 	b, _ := json.Marshal(c)
 	path := filepath.Join(t.TempDir(), "config.json")
 	_ = os.WriteFile(path, b, 0600)

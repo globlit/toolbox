@@ -14,7 +14,7 @@ import (
 func init() { testutil.Hook() }
 
 func TestNoPassthrough(t *testing.T) {
-	for _, cmd := range []string{"delete pods", "apply -f file", "patch pod app", "replace pod app", "edit pod app", "exec app -- sh", "debug app", "cp app:/tmp /tmp", "port-forward app 80", "proxy", "config view --raw", "get pods --raw=/", "get pods -o jsonpath=@/etc/passwd", "get pods --watch", "get pods --server=https://evil", "get pods --as=admin", "get pods --token=CANARY", "get pods --kubeconfig=evil", "get pods --v=9", "logs app --follow", "logs app --all-containers", "get pods -- --raw=/"} {
+	for _, cmd := range []string{"delete pods", "apply -f file", "patch pod app", "replace pod app", "edit pod app", "exec app -- sh", "debug app", "cp app:/tmp /tmp", "proxy", "config view --raw", "get pods --raw=/", "get pods -o jsonpath=@/etc/passwd", "get pods --watch", "get pods --server=https://evil", "get pods --as=admin", "get pods --token=CANARY", "get pods --kubeconfig=evil", "get pods --v=9", "logs app --follow", "logs app --all-containers", "get pods -- --raw=/"} {
 		t.Run(cmd, func(t *testing.T) {
 			var out, stderr bytes.Buffer
 			args := append([]string{"kubectl"}, strings.Fields(cmd)...)
@@ -42,6 +42,20 @@ func TestParserRejectsDuplicateAndTrailingInputs(t *testing.T) {
 	for _, args := range [][]string{{"get", "pods", "a", "b"}, {"get", "pods", "-n", "apps", "--namespace=apps"}, {"logs", "api", "--previous=true"}, {"get", "pods", "--selector="}, {"mcp", "anything"}} {
 		_, err := parse(append([]string{"kubectl"}, args...))
 		if err == nil {
+			t.Fatal(args)
+		}
+	}
+}
+
+func TestRawAndForwardParsing(t *testing.T) {
+	for _, args := range [][]string{{"get", "--raw=/api/v1/namespaces/apps/pods"}, {"get", "--raw", "/version"}, {"port-forward", "svc/api", "18080:80", "-n", "apps", "--duration", "1m"}, {"port-forward", "api", ":8080", ":8081"}} {
+		r, err := parse(append([]string{"kubectl"}, args...))
+		if err != nil || (r.mode != "raw" && r.mode != "port-forward") {
+			t.Fatal(r, err)
+		}
+	}
+	for _, args := range [][]string{{"delete", "--raw=/api/v1/namespaces/apps/pods"}, {"get", "pods", "--raw=/version"}, {"get", "--raw=/version", "-n", "apps"}, {"get", "--raw=/version", "--raw=/api"}, {"port-forward", "api", "8080:80", "--address=0.0.0.0"}, {"port-forward", "api", "8080:80", "--kubeconfig=evil"}, {"port-forward", "api", "8080:80", "--duration=0s"}, {"port-forward", "api", "8080:80", "--duration=2h"}} {
+		if _, err := parse(append([]string{"kubectl"}, args...)); err == nil {
 			t.Fatal(args)
 		}
 	}
