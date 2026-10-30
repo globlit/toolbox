@@ -51,7 +51,6 @@ Use a read-only Kubernetes identity. Protect credentials from direct agent acces
 - [CLI and MCP examples](docs/examples.md)
 - [Client configuration](docs/clients.md)
 - [Architecture and future glab integration](docs/architecture.md)
-- [Validation](docs/validation.md) and [security audit](docs/security-audit.md)
 - [Dependency licenses](THIRD_PARTY_NOTICES.md)
 
 License: [Apache-2.0](LICENSE).
