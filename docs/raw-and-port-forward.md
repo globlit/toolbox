@@ -20,7 +20,9 @@ MCP tool call:
 
 Raw requests permit GET only. The path must match a catalog resource in an approved namespace, an enabled cluster-scoped resource, or a discovery endpoint. Discovery supports `/version`, `/api`, `/apis`, and catalog API groups/versions. Resource queries accept `labelSelector`, `fieldSelector`, and a list `limit` from 1 to 2,000.
 
-Exec, attach, proxy, Secrets, ConfigMaps, watch, unknown endpoints, encoded path segments, and duplicate query keys are rejected. Use `kubectl_logs` or `toolbox kubectl logs` for bounded log reads. Raw requests accept `--context` and `-o json`. They reject resource names, namespace flags, selectors, and `-A`. Returned JSON receives the same sanitization as typed reads. [`kubectl get` reference](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_get/).
+Exec, attach, proxy, Secrets, watch, unknown endpoints, encoded path segments, and duplicate query keys are rejected. Use `kubectl_logs` or `toolbox kubectl logs` for bounded log reads. Raw requests accept `--context` and `-o json`. They reject resource names, namespace flags, selectors, and `-A`. Returned JSON receives the same sanitization as typed reads. [`kubectl get` reference](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_get/).
+
+With `namespaces: ["*"]`, approved collection paths such as `/api/v1/pods` can list across namespaces. ConfigMap paths enforce [ConfigMap exclusions](configmaps.md). A cluster-wide ConfigMap path is rejected when exclusions require separate reads.
 
 ## Enable tunnels
 

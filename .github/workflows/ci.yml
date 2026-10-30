@@ -18,10 +18,62 @@ jobs:
       - run: go mod verify
       - run: go vet ./...
       - run: go test -race ./...
+      - name: Fuzz logs and namespace policy
+        if: matrix.os == 'ubuntu-latest'
+        timeout-minutes: 5
+        shell: bash
+        env:
+          GOMAXPROCS: '2'
+        run: |
+          set -euo pipefail
+          for target in \
+            FuzzComplexLogCombinations \
+            FuzzSensitiveLogfmtValues \
+            FuzzMalformedJSONRecovery \
+            FuzzKnownCredentialInArbitraryLogs \
+            FuzzComplexStructuredLogs \
+            FuzzArbitraryLogBytes; do
+            go test ./internal/sanitize -run '^$' -fuzz "^${target}$" -fuzztime=15s -parallel=2
+          done
+          for target in FuzzConfigMapNamespacePolicy FuzzWildcardRawPath; do
+            go test ./internal/integrations/kubectl -run '^$' -fuzz "^${target}$" -fuzztime=15s -parallel=2
+          done
+      - name: Save failing fuzz inputs
+        if: failure() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: failing-fuzz-inputs
+          path: internal/**/testdata/fuzz/**
+          if-no-files-found: ignore
       - run: go install .
       - run: go run . version
       - if: matrix.os == 'ubuntu-latest'
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+  kind-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install kind and kubectl
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install sigs.k8s.io/kind@v0.33.0
+          mkdir -p "$RUNNER_TEMP/toolbox-e2e-bin"
+          cd "$RUNNER_TEMP/toolbox-e2e-bin"
+          curl --fail --silent --show-error --location --output kubectl https://dl.k8s.io/release/v1.34.11/bin/linux/amd64/kubectl
+          curl --fail --silent --show-error --location --output kubectl.sha256 https://dl.k8s.io/release/v1.34.11/bin/linux/amd64/kubectl.sha256
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          chmod +x kubectl
+          echo "$RUNNER_TEMP/toolbox-e2e-bin" >> "$GITHUB_PATH"
+      - name: Test CLI and MCP against kind
+        env:
+          GOMAXPROCS: '2'
+        run: bash scripts/e2e/kind.sh
   portable-build:
     runs-on: ubuntu-latest
     steps:
@@ -36,7 +88,7 @@ jobs:
           path: dist/*
           if-no-files-found: error
   release:
-    needs: [test, portable-build]
+    needs: [test, portable-build, kind-e2e]
     if: github.event_name == 'push' && github.repository == 'globlit/toolbox' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     concurrency:

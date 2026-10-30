@@ -7,7 +7,7 @@ Toolbox restricts its command-line interface (CLI) and Model Context Protocol (M
 Apply three controls:
 
 1. **Request restrictions.** Toolbox rejects mutation commands, unsupported resources, arbitrary flags, and multiple-resource requests. Raw GET paths must match approved resource or discovery endpoints. Other subresources remain blocked. The catalog fixes API groups and versions. Missing API versions fail without fallback.
-2. **Cluster permissions.** Use a dedicated read-only identity. Kubernetes role-based access control (RBAC) grants are additive. Inspect all bindings affecting that identity. The reader manifests exclude Secrets, ConfigMaps, mutation, exec, attach, proxy, port-forward, token creation, and impersonation. The separate optional tunnel role grants only `get` and `create` on `pods/portforward`. [RBAC reference](https://kubernetes.io/docs/reference/access-authn-authz/rbac/).
+2. **Cluster permissions.** Use a dedicated read-only identity. Kubernetes role-based access control (RBAC) grants are additive. Inspect all bindings affecting that identity. The reader manifests exclude Secrets, mutation, exec, attach, proxy, port-forward, token creation, and impersonation. The separate optional tunnel role grants only `get` and `create` on `pods/portforward`. [RBAC reference](https://kubernetes.io/docs/reference/access-authn-authz/rbac/).
 3. **Credential isolation.** Run the gateway under a separate account or container if the agent must not access raw credentials or outputs. Expose a fixed invocation over standard input/output. Block direct cluster access. Same-user execution does not enforce this isolation.
 
 Protect Toolbox, kubectl, configuration, credentials, dependencies, and their parent directories from unauthorized modification.
@@ -67,6 +67,6 @@ Sanitization does not prevent prompt injection. MCP output is marked untrusted. 
 | Log lookback | 1 hour | 24 hours |
 | Tunnel lifetime | 300 seconds | 3,600 seconds |
 
-All contexts and tunnels share the two-process limit. `-A` queries approved namespaces separately. It never requests a cluster-wide namespace list. Combined namespace results share the configured timeout and output budget. The serialized result must also fit the configured output limit. Narrow selectors or reduce the log tail when a response exceeds that limit.
+All contexts and tunnels share the two-process limit. Explicit namespace lists use separate reads. Wildcard selections can use cluster-wide list endpoints. ConfigMap exclusions can require namespace discovery before separate reads. Read [ConfigMap policy](configmaps.md). Namespace discovery and combined resource results share the configured timeout and output budget. The serialized result must also fit the configured output limit. Narrow selectors or reduce the log tail when a response exceeds that limit.
 
-The synthetic fixture corpus covers OpenSearch, RabbitMQ, Kvrocks, CNPG/Postgres, Python, cert-manager, external-dns, Prometheus/Alertmanager, Fluent Bit, Cilium, CoreDNS, and generic workloads. `kubeseak` is treated as a workload label. These fixtures do not establish production format coverage.
+Read [log sanitizer tests](log-testing.md) for the synthetic corpus, fuzz targets, and CLI/MCP checks. `kubeseak` is treated as a workload label. These fixtures do not establish production format coverage.

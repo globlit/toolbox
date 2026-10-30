@@ -13,7 +13,7 @@ metadata:
   name: toolbox-namespaced-reader
 rules:
   - apiGroups: [""]
-    resources: [pods, services, endpoints, events, persistentvolumeclaims]
+    resources: [pods, services, endpoints, events, persistentvolumeclaims, configmaps]
     verbs: [get, list]
   - apiGroups: [""]
     resources: [pods/log]

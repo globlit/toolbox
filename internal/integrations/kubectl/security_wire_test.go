@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -23,6 +24,38 @@ func TestSecurityRegressionsOverCLIAndMCP(t *testing.T) {
 	if kubectlBinary == "" {
 		t.Skip("set TOOLBOX_TEST_KUBECTL for real kubectl against a local TLS mock")
 	}
+	fixtureBytes, err := os.ReadFile("../../sanitize/testdata/complex_logs.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixtures []struct {
+		ID, Input string
+		Closed    bool
+	}
+	if err := json.Unmarshal(fixtureBytes, &fixtures); err != nil {
+		t.Fatal(err)
+	}
+	var complexLog strings.Builder
+	var checkpoints []string
+	for i, fixture := range fixtures {
+		if fixture.Closed {
+			marker := fmt.Sprintf("INFO checkpoint-%03d ready", i)
+			checkpoints = append(checkpoints, marker)
+			complexLog.WriteString(marker + "\n" + fixture.Input + "\n")
+		}
+	}
+	complexLog.WriteString("INFO healthy-after\n")
+	checkComplex := func(out []byte) {
+		t.Helper()
+		if strings.Contains(string(out), "SYNTHETIC_SECRET_7mQ2") {
+			t.Fatal("complex log corpus leaked", string(out))
+		}
+		for _, marker := range append(checkpoints, "INFO healthy-after") {
+			if !strings.Contains(string(out), marker) {
+				t.Fatal("complex log lost independent record", marker)
+			}
+		}
+	}
 	var mu sync.Mutex
 	var requests []string
 	api := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +72,8 @@ func TestSecurityRegressionsOverCLIAndMCP(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "text/plain")
 		switch {
+		case strings.Contains(r.URL.Path, "/complex/"):
+			_, _ = w.Write([]byte(complexLog.String()))
 		case strings.Contains(r.URL.Path, "/suffix/"):
 			_, _ = w.Write([]byte("INFO healthy-before\n" + `request_body={"customer":"TOPSECRET42"}` + "\nINFO healthy-after\n"))
 		case strings.Contains(r.URL.Path, "/tailcase/"):
@@ -77,7 +112,7 @@ func TestSecurityRegressionsOverCLIAndMCP(t *testing.T) {
 	binary, _ := testutil.BuildGateway(t, c)
 	for _, tc := range []struct {
 		pod, tail, canary string
-	}{{"suffix", "200", "TOPSECRET42"}, {"tailcase", "200", "TOPSECRET42"}, {"tailcase", "1", "TOPSECRET42"}, {"number", "200", "654321"}, {"python", "200", "TOPSECRET42"}, {"quoted", "200", "TOPSECRET42"}, {"stderr", "200", "TOPSECRET42"}} {
+	}{{"complex", "1000", "SYNTHETIC_SECRET_7mQ2"}, {"suffix", "200", "TOPSECRET42"}, {"tailcase", "200", "TOPSECRET42"}, {"tailcase", "1", "TOPSECRET42"}, {"number", "200", "654321"}, {"python", "200", "TOPSECRET42"}, {"quoted", "200", "TOPSECRET42"}, {"stderr", "200", "TOPSECRET42"}} {
 		out, err := exec.Command(binary, "kubectl", "logs", tc.pod, "--tail", tc.tail).CombinedOutput()
 		if (tc.pod == "stderr") != (err != nil) {
 			t.Fatal(err, string(out))
@@ -89,6 +124,9 @@ func TestSecurityRegressionsOverCLIAndMCP(t *testing.T) {
 		leak := strings.Contains(string(out), tc.canary)
 		if leak || strings.Contains(string(out), "987654") {
 			t.Fatalf("unexpected result for %s: %s", tc.pod, out)
+		}
+		if tc.pod == "complex" {
+			checkComplex(out)
 		}
 		if tc.pod == "suffix" || tc.pod == "python" || tc.pod == "quoted" {
 			if !strings.Contains(string(out), "healthy-before") || !strings.Contains(string(out), "healthy-after") {
@@ -105,7 +143,7 @@ func TestSecurityRegressionsOverCLIAndMCP(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cs.Close()
-	for _, pod := range []string{"suffix", "tailcase", "number", "python", "quoted", "stderr"} {
+	for _, pod := range []string{"complex", "suffix", "tailcase", "number", "python", "quoted", "stderr"} {
 		r, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "kubectl_logs", Arguments: map[string]any{"pod": pod, "tail": 1}})
 		if err != nil {
 			t.Fatal(err)
@@ -114,6 +152,9 @@ func TestSecurityRegressionsOverCLIAndMCP(t *testing.T) {
 			t.Fatal("unexpected MCP result", r)
 		}
 		b, _ := json.Marshal(r)
+		if pod == "complex" {
+			checkComplex(b)
+		}
 		canary := "TOPSECRET42"
 		if pod == "number" {
 			canary = "654321"

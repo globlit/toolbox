@@ -60,7 +60,7 @@ func TestContextConfiguration(t *testing.T) {
 		func(k *Kubectl) { k.Contexts[1].Name = "prod-a" },
 		func(k *Kubectl) { k.Contexts[1].Name = "" },
 		func(k *Kubectl) { k.Contexts[1].Name = "prod\na" },
-		func(k *Kubectl) { k.Contexts[1].Namespaces = []string{"*"} },
+		func(k *Kubectl) { k.Contexts[1].Namespaces = []string{"prod-*"} },
 		func(k *Kubectl) { k.Contexts[1].Namespaces = []string{"billing", "billing"} },
 		func(k *Kubectl) { k.Contexts[1].DefaultNamespace = "apps" },
 		func(k *Kubectl) { k.Contexts = make([]Context, 101) },
@@ -70,6 +70,27 @@ func TestContextConfiguration(t *testing.T) {
 		mutate(&c.Kubectl)
 		if c.Validate() == nil {
 			t.Fatal("invalid context configuration accepted", c.Kubectl)
+		}
+	}
+}
+
+func TestNamespaceSelections(t *testing.T) {
+	for _, selection := range [][]string{{"*"}, {"*", "apps"}, {"apps"}} {
+		c := Config{Kubectl: Kubectl{Binary: filepath.Join(t.TempDir(), "kubectl"), Kubeconfig: filepath.Join(t.TempDir(), "config"), Context: "reader", DefaultNamespace: "apps", Namespaces: selection, ConfigMapNamespaces: []string{"*"}, DisabledConfigMapNamespaces: []string{"private"}}}
+		if err := c.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		for _, bad := range [][]string{{"prod-*"}, {"*", "*"}, {"bad/name"}} {
+			invalid := c
+			invalid.Kubectl.ConfigMapNamespaces = bad
+			if invalid.Validate() == nil {
+				t.Fatal("invalid selection accepted", bad)
+			}
+			invalid = c
+			invalid.Kubectl.DisabledConfigMapNamespaces = bad
+			if invalid.Validate() == nil {
+				t.Fatal("invalid exclusion accepted", bad)
+			}
 		}
 	}
 }

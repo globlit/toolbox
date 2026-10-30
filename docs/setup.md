@@ -95,7 +95,7 @@ Save this JSON at the approved Toolbox configuration path:
 }
 ```
 
-Set absolute file paths. Include `default_namespace` in `namespaces`. Namespace entries restrict Toolbox requests but grant no Kubernetes permissions. Leave cluster-scoped access disabled unless the operator approves it and provides the corresponding permissions.
+Set absolute file paths. Include `default_namespace` in `namespaces`, or use `["*"]` for all namespaces. Namespace entries restrict Toolbox requests but grant no Kubernetes permissions. Read [ConfigMap exclusions and wildcard namespaces](configmaps.md). Leave cluster-scoped access disabled unless the operator approves it and provides the corresponding permissions.
 
 ### Multiple contexts
 
@@ -141,7 +141,7 @@ Read [context selection and query examples](contexts.md) for catalog output, per
 
 Multiple configured contexts require explicit selection. One configured context remains the default. Requests do not change kubeconfig or a shared active context. Results identify the selected context. Tunnel status remains tied to its creation context.
 
-`-A` / `--all-namespaces` combines lists from approved namespaces in the selected context. Results report those namespaces. It rejects `-n`, object names, and cluster-scoped resources. A failed or incomplete namespace read discards the combined data. The request shares one timeout and output budget across namespaces.
+`-A` / `--all-namespaces` queries approved namespaces in the selected context. With `["*"]`, unrestricted reads use the cluster-wide list endpoint. ConfigMap exclusions require separate namespace reads. Results report the queried namespaces or `["*"]`. The option rejects `-n`, object names, and cluster-scoped resources. A failed or incomplete read discards the combined data.
 
 `-o json` / `--output=json` accepts the existing sanitized result envelope, including `data`, `context`, and redaction counts. Other output formats remain unsupported. MCP already returns JSON.
 

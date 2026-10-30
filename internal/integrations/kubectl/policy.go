@@ -23,6 +23,7 @@ type Resource struct {
 // Names and versions are fixed. Reads use exact API paths; kubectl discovery
 // resolution can otherwise fall back to a different API group.
 var resources = []Resource{
+	{"configmaps.", "v1", false},
 	{"pods.", "v1", false}, {"services.", "v1", false}, {"endpoints.", "v1", false}, {"events.", "v1", false}, {"persistentvolumeclaims.", "v1", false},
 	{"deployments.apps", "apps/v1", false}, {"statefulsets.apps", "apps/v1", false}, {"daemonsets.apps", "apps/v1", false}, {"replicasets.apps", "apps/v1", false},
 	{"jobs.batch", "batch/v1", false}, {"cronjobs.batch", "batch/v1", false}, {"endpointslices.discovery.k8s.io", "discovery.k8s.io/v1", false},
@@ -38,6 +39,7 @@ var resources = []Resource{
 }
 
 var aliases = map[string]string{
+	"cm": "configmaps.", "configmap": "configmaps.", "configmaps": "configmaps.",
 	"po": "pods.", "pod": "pods.", "pods": "pods.", "svc": "services.", "service": "services.", "services": "services.",
 	"events": "events.", "event": "events.", "ev": "events.", "endpoints": "endpoints.", "ep": "endpoints.", "pvc": "persistentvolumeclaims.", "persistentvolumeclaims": "persistentvolumeclaims.",
 	"deploy": "deployments.apps", "deployment": "deployments.apps", "deployments": "deployments.apps", "sts": "statefulsets.apps", "statefulsets": "statefulsets.apps", "ds": "daemonsets.apps", "daemonsets": "daemonsets.apps", "rs": "replicasets.apps", "replicasets": "replicasets.apps",
@@ -75,7 +77,7 @@ func namespace(k config.Kubectl, ns string) (string, error) {
 	if ns == "" {
 		ns = k.DefaultNamespace
 	}
-	if !config.Namespace(ns) || !slices.Contains(k.Namespaces, ns) {
+	if !config.Namespace(ns) || !config.NamespaceSelected(k.Namespaces, ns) {
 		return "", errors.New("namespace is not permitted")
 	}
 	return ns, nil
@@ -84,6 +86,9 @@ func namespace(k config.Kubectl, ns string) (string, error) {
 func Catalog(k config.Kubectl) []Resource {
 	out := []Resource{}
 	for _, r := range resources {
+		if r.Name == "configmaps." && k.DisableConfigMaps {
+			continue
+		}
 		if !r.ClusterScoped || k.AllowClusterScoped {
 			out = append(out, r)
 		}
@@ -92,9 +97,6 @@ func Catalog(k config.Kubectl) []Resource {
 }
 
 func getArgs(k config.Kubectl, in GetInput) ([]string, error) {
-	if in.AllNamespaces {
-		return nil, errors.New("all_namespaces requires namespace fan-out")
-	}
 	r := in.Resource
 	if a, ok := aliases[r]; ok {
 		r = a
@@ -110,6 +112,9 @@ func getArgs(k config.Kubectl, in GetInput) ([]string, error) {
 		return nil, errors.New("invalid label selector")
 	}
 	resource := Catalog(k)[idx]
+	if in.AllNamespaces && (!slices.Contains(k.Namespaces, "*") || resource.ClusterScoped || in.Name != "" || in.Namespace != "" || (resource.Name == "configmaps." && !k.ConfigMapsEverywhere())) {
+		return nil, errors.New("all_namespaces requires an unrestricted namespace selection or namespace-scoped reads")
+	}
 	base := "/apis/" + resource.APIVersion
 	if resource.APIVersion == "v1" {
 		base = "/api/v1"
@@ -118,10 +123,13 @@ func getArgs(k config.Kubectl, in GetInput) ([]string, error) {
 		if in.Namespace != "" {
 			return nil, errors.New("namespace cannot be supplied for a cluster-scoped resource")
 		}
-	} else {
+	} else if !in.AllNamespaces {
 		ns, err := namespace(k, in.Namespace)
 		if err != nil {
 			return nil, err
+		}
+		if resource.Name == "configmaps." && !k.ConfigMapsAllowed(ns) {
+			return nil, errors.New("ConfigMaps are not permitted in this namespace")
 		}
 		base += "/namespaces/" + ns
 	}

@@ -10,6 +10,9 @@
       "kube-system"
     ],
     "allow_cluster_scoped": false,
+    "disable_configmaps": false,
+    "configmap_namespaces": ["*"],
+    "disabled_configmap_namespaces": [],
     "timeout_seconds": 30,
     "max_output_bytes": 1048576,
     "allow_port_forward": false,

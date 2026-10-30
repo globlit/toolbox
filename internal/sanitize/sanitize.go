@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/globlit/toolbox/internal/config"
 )
@@ -30,6 +29,11 @@ type Sanitizer struct {
 
 func New(c config.Redaction, credentials []string) (*Sanitizer, error) {
 	s := &Sanitizer{literals: append(append([]string{}, c.Literals...), credentials...)}
+	for _, literal := range append([]string{}, s.literals...) {
+		if normalized := normalizedText(literal); normalized != "" && normalized != literal {
+			s.literals = append(s.literals, normalized)
+		}
+	}
 	sort.Slice(s.literals, func(i, j int) bool { return len(s.literals[i]) > len(s.literals[j]) })
 	for _, p := range c.Patterns {
 		r, err := regexp.Compile(p)
@@ -86,13 +90,7 @@ func (s *Sanitizer) replace(text string, r *regexp.Regexp, replacement string, r
 }
 
 func (s *Sanitizer) plain(text string, report *Report) string {
-	text = ansi.ReplaceAllString(text, "")
-	text = strings.Map(func(r rune) rune {
-		if (unicode.IsControl(r) && r != '\n' && r != '\t') || unicode.Is(unicode.Cf, r) {
-			return -1
-		}
-		return r
-	}, text)
+	text = normalizedText(text)
 
 	for _, r := range rules {
 		text = s.replace(text, r.re, r.replacement, report)
@@ -152,7 +150,7 @@ func (s *Sanitizer) walk(v any, depth int, report *Report) any {
 		}
 		return x
 	case string:
-		return s.text(x, false, depth+1, report)
+		return s.text(x, strings.Contains(x, "\n"), depth+1, report)
 	case json.Number:
 		if s.scalarMatch(x.String()) {
 			report.Redactions++
@@ -202,7 +200,19 @@ func jsonSuffix(line string) (int, any, bool) {
 		if v, ok := parseJSON([]byte(line[pos:])); ok {
 			return pos, v, true
 		}
-		pos++
+		// Malformed objects and arrays cannot be recovered as inner records.
+		if line[pos] == '{' {
+			return 0, nil, false
+		}
+		end := strings.IndexByte(line[pos:], ']')
+		nested := strings.IndexAny(line[pos+1:], "{[")
+		if end < 0 || (nested >= 0 && nested+1 < end) {
+			return 0, nil, false
+		}
+		if _, array := parseJSON([]byte(line[pos : pos+end+1])); array {
+			return 0, nil, false
+		}
+		pos += end + 1
 	}
 	return 0, nil, false
 }

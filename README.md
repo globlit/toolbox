@@ -42,7 +42,9 @@ Read [client configuration](docs/clients.md) for project JSON, Windows paths, Cl
 
 ## Restrictions
 
-Toolbox permits catalog reads, approved raw GET paths, and finite pod logs. It rejects mutation commands, Secrets, ConfigMaps, exec, proxy, and unknown endpoints. Optional port-forward tunnels can carry writes and unsanitized traffic. Run `toolbox kubectl resources` to inspect the catalog.
+Toolbox permits catalog reads, approved raw GET paths, and finite pod logs. It rejects mutation commands, Secrets, exec, proxy, and unknown endpoints. Optional port-forward tunnels can carry writes and unsanitized traffic. Run `toolbox kubectl resources` to inspect the catalog.
+
+ConfigMaps are enabled by default. Configure [ConfigMap exclusions and wildcard namespaces](docs/configmaps.md).
 
 Ambiguous log lines become `[WITHHELD: ambiguous log fragment]`. Independent neighboring records remain visible. Sanitization cannot identify every secret.
 

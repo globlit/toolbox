@@ -79,7 +79,7 @@ Illustrative output when both approved namespaces are empty:
 }
 ```
 
-`-A` and `--all-namespaces` query only approved namespaces in the selected context. They reject an object name, `-n`, raw paths, and cluster-scoped resources. Each namespace query must succeed with a complete list. Failure, cancellation, timeout, or excess output discards the combined data.
+`-A` and `--all-namespaces` query approved namespaces in the selected context. With `namespaces: ["*"]`, unrestricted reads use the cluster-wide list endpoint. Read [wildcard behavior and ConfigMap exclusions](configmaps.md). The options reject an object name, `-n`, raw paths, and cluster-scoped resources. Each query must succeed with a complete list. Failure, cancellation, timeout, or excess output discards the combined data.
 
 `-o json` and `--output=json` preserve the sanitized result envelope. Resource JSON appears under `data`. MCP already returns JSON.
 

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -22,26 +23,32 @@ type Config struct {
 
 type Kubectl struct {
 	// Supplied by the trusted build, never deserialized from operator/request JSON.
-	ExecutableSHA256      string    `json:"-"`
-	Binary                string    `json:"binary"`
-	Kubeconfig            string    `json:"kubeconfig"`
-	Context               string    `json:"context"`
-	Contexts              []Context `json:"contexts,omitempty"`
-	DefaultNamespace      string    `json:"default_namespace"`
-	Namespaces            []string  `json:"namespaces"`
-	AllowClusterScoped    bool      `json:"allow_cluster_scoped"`
-	TimeoutSeconds        int       `json:"timeout_seconds"`
-	MaxOutputBytes        int       `json:"max_output_bytes"`
-	AllowPortForward      bool      `json:"allow_port_forward"`
-	PortForwardMaxSeconds int       `json:"port_forward_max_seconds"`
+	ExecutableSHA256            string    `json:"-"`
+	Binary                      string    `json:"binary"`
+	Kubeconfig                  string    `json:"kubeconfig"`
+	Context                     string    `json:"context"`
+	Contexts                    []Context `json:"contexts,omitempty"`
+	DefaultNamespace            string    `json:"default_namespace"`
+	Namespaces                  []string  `json:"namespaces"`
+	AllowClusterScoped          bool      `json:"allow_cluster_scoped"`
+	TimeoutSeconds              int       `json:"timeout_seconds"`
+	MaxOutputBytes              int       `json:"max_output_bytes"`
+	AllowPortForward            bool      `json:"allow_port_forward"`
+	DisableConfigMaps           bool      `json:"disable_configmaps"`
+	ConfigMapNamespaces         []string  `json:"configmap_namespaces,omitempty"`
+	DisabledConfigMapNamespaces []string  `json:"disabled_configmap_namespaces,omitempty"`
+	PortForwardMaxSeconds       int       `json:"port_forward_max_seconds"`
 }
 
 type Context struct {
-	Name               string   `json:"name"`
-	DefaultNamespace   string   `json:"default_namespace"`
-	Namespaces         []string `json:"namespaces"`
-	AllowClusterScoped bool     `json:"allow_cluster_scoped"`
-	AllowPortForward   bool     `json:"allow_port_forward"`
+	Name                        string   `json:"name"`
+	DefaultNamespace            string   `json:"default_namespace"`
+	Namespaces                  []string `json:"namespaces"`
+	AllowClusterScoped          bool     `json:"allow_cluster_scoped"`
+	AllowPortForward            bool     `json:"allow_port_forward"`
+	DisableConfigMaps           bool     `json:"disable_configmaps"`
+	ConfigMapNamespaces         []string `json:"configmap_namespaces,omitempty"`
+	DisabledConfigMapNamespaces []string `json:"disabled_configmap_namespaces,omitempty"`
 }
 
 func (k Kubectl) Scopes() []Kubectl {
@@ -54,9 +61,23 @@ func (k Kubectl) Scopes() []Kubectl {
 		v.Contexts = nil
 		v.Context, v.DefaultNamespace, v.Namespaces = scope.Name, scope.DefaultNamespace, scope.Namespaces
 		v.AllowClusterScoped, v.AllowPortForward = scope.AllowClusterScoped, scope.AllowPortForward
+		v.DisableConfigMaps = k.DisableConfigMaps || scope.DisableConfigMaps
+		v.ConfigMapNamespaces, v.DisabledConfigMapNamespaces = scope.ConfigMapNamespaces, scope.DisabledConfigMapNamespaces
 		out = append(out, v)
 	}
 	return out
+}
+
+func (k Kubectl) ConfigMapsAllowed(ns string) bool {
+	return !k.DisableConfigMaps && (len(k.ConfigMapNamespaces) == 0 || NamespaceSelected(k.ConfigMapNamespaces, ns)) && !NamespaceSelected(k.DisabledConfigMapNamespaces, ns)
+}
+
+func NamespaceSelected(selection []string, ns string) bool {
+	return slices.Contains(selection, "*") || slices.Contains(selection, ns)
+}
+
+func (k Kubectl) ConfigMapsEverywhere() bool {
+	return !k.DisableConfigMaps && (len(k.ConfigMapNamespaces) == 0 || slices.Contains(k.ConfigMapNamespaces, "*")) && len(k.DisabledConfigMapNamespaces) == 0
 }
 
 type Redaction struct {
@@ -117,7 +138,7 @@ func (c *Config) Validate() error {
 	if len(k.Contexts) > 100 {
 		return errors.New("at most 100 contexts are permitted")
 	}
-	if len(k.Contexts) > 0 && (k.Context != "" || k.DefaultNamespace != "" || len(k.Namespaces) != 0 || k.AllowClusterScoped || k.AllowPortForward) {
+	if len(k.Contexts) > 0 && (k.Context != "" || k.DefaultNamespace != "" || len(k.Namespaces) != 0 || k.AllowClusterScoped || k.AllowPortForward || len(k.ConfigMapNamespaces) != 0 || len(k.DisabledConfigMapNamespaces) != 0) {
 		return errors.New("contexts cannot be combined with single-context settings")
 	}
 	seen := map[string]bool{}
@@ -131,13 +152,25 @@ func (c *Config) Validate() error {
 		}
 		namespaces := map[string]bool{}
 		for _, ns := range scope.Namespaces {
-			if !Namespace(ns) || namespaces[ns] {
+			if (ns != "*" && !Namespace(ns)) || namespaces[ns] {
 				return errors.New("invalid or duplicate namespace in configuration")
 			}
 			namespaces[ns] = true
 		}
-		if !namespaces[scope.DefaultNamespace] {
+		if !namespaces["*"] && !namespaces[scope.DefaultNamespace] {
 			return errors.New("default_namespace must be in namespaces")
+		}
+		for _, selection := range [][]string{scope.ConfigMapNamespaces, scope.DisabledConfigMapNamespaces} {
+			if len(selection) > 100 {
+				return errors.New("at most 100 ConfigMap namespace entries are permitted")
+			}
+			seen := map[string]bool{}
+			for _, ns := range selection {
+				if (ns != "*" && !Namespace(ns)) || seen[ns] {
+					return errors.New("invalid or duplicate ConfigMap namespace")
+				}
+				seen[ns] = true
+			}
 		}
 	}
 	if k.TimeoutSeconds == 0 {

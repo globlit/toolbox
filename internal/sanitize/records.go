@@ -12,7 +12,7 @@ import (
 
 const Withheld = "[WITHHELD: ambiguous log fragment]"
 
-var assignment = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])['"]?([A-Za-z_][A-Za-z0-9_.-]*)['"]?\s*[:=]\s*`)
+var assignment = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([A-Za-z_][A-Za-z0-9_.-]*))\s*[:=]\s*`)
 var timestamp = regexp.MustCompile(`^(?:\d{4}-\d{2}-\d{2}[T ][0-9:.]+(?:Z|[+-]\d{2}:\d{2})?|\[\d{4}[-/]\d{2}[-/]\d{2}[ T][0-9:.]+(?:Z|[+-]\d{2}:\d{2})?\])[ \t]`)
 var level = regexp.MustCompile(`(?i)^(?:\[(?:trace|debug|info|warn|warning|error|fatal|critical)\]|(?:trace|debug|info|warn|warning|error|fatal|critical)\b)[ :\t]+`)
 var logfmtEnvelope = regexp.MustCompile(`(?:^|\s)(?:level|severity|ts|timestamp|logger|msg|message)=`)
@@ -23,11 +23,49 @@ var structuredFragment = regexp.MustCompile(`\{|\[\s*(?:["'{\[\]0-9-]|true\b|fal
 // the same normalized keys as the structured walker, without evaluating logs.
 func sensitiveValue(line string) (int, string, bool) {
 	for _, m := range assignment.FindAllStringSubmatchIndex(line, -1) {
-		if sensitive(line[m[2]:m[3]]) {
-			return m[2], line[m[1]:], true
+		start, end := assignmentKey(m)
+		if sensitive(line[start:end]) {
+			return start, line[m[1]:], true
 		}
 	}
 	return 0, "", false
+}
+
+func assignmentKey(match []int) (int, int) {
+	for i := 2; i < len(match); i += 2 {
+		if match[i] >= 0 {
+			return match[i], match[i+1]
+		}
+	}
+	return 0, 0
+}
+
+// continuation tracks open values without interpreting assignments inside quotes.
+func continuation(line string) (string, bool) {
+	skipUntil := 0
+	block := false
+	for _, m := range assignment.FindAllStringSubmatchIndex(line, -1) {
+		start, end := assignmentKey(m)
+		if start < skipUntil {
+			continue
+		}
+		value := line[m[1]:]
+		for _, delimiter := range []string{`"""`, `'''`, `"`, `'`} {
+			if !strings.HasPrefix(value, delimiter) {
+				continue
+			}
+			close := quoteEndIndex(value[len(delimiter):], delimiter)
+			if close < 0 {
+				return delimiter, false
+			}
+			skipUntil = m[1] + len(delimiter)*2 + close
+			break
+		}
+		if sensitive(line[start:end]) && (strings.TrimSpace(value) == "" || multilineSecret.MatchString(line[start:])) {
+			block = true
+		}
+	}
+	return "", block
 }
 
 func body(line string) string { return timestamp.ReplaceAllString(line, "") }
@@ -50,10 +88,14 @@ func recordStart(line string) bool {
 }
 
 func quoteEnd(s, delimiter string) bool {
+	return quoteEndIndex(s, delimiter) >= 0
+}
+
+func quoteEndIndex(s, delimiter string) int {
 	for pos := 0; pos < len(s); {
 		i := strings.Index(s[pos:], delimiter)
 		if i < 0 {
-			return false
+			return -1
 		}
 		i += pos
 		backslashes := 0
@@ -61,27 +103,17 @@ func quoteEnd(s, delimiter string) bool {
 			backslashes++
 		}
 		if backslashes%2 == 0 {
-			return true
+			return i
 		}
 		pos = i + len(delimiter)
 	}
-	return false
-}
-
-func openQuote(value string) string {
-	for _, d := range []string{`"""`, `'''`, `"`, `'`} {
-		if strings.HasPrefix(value, d) {
-			if !quoteEnd(value[len(d):], d) {
-				return d
-			}
-			break
-		}
-	}
-	return ""
+	return -1
 }
 
 func normalizedText(s string) string {
-	s = ansi.ReplaceAllString(strings.ToValidUTF8(s, ""), "")
+	s = ansi.ReplaceAllStringFunc(strings.ToValidUTF8(s, ""), func(sequence string) string {
+		return strings.Repeat("\n", strings.Count(sequence, "\n"))
+	})
 	return strings.Map(func(r rune) rune {
 		if (unicode.IsControl(r) && r != '\n' && r != '\t') || unicode.Is(unicode.Cf, r) {
 			return -1
@@ -142,15 +174,18 @@ func (s *Sanitizer) text(input string, strictBoundary bool, depth int, report *R
 			}
 			block = false
 		}
+		nextQuote, nextBlock := continuation(line)
+		if nextQuote != "" {
+			quote = nextQuote
+			withhold(i)
+			continue
+		}
 		// Indentation in a tailed stream is an orphan continuation, even when
 		// the remaining fragment happens to parse as a complete JSON value.
 		if strictBoundary && (strings.HasPrefix(b, " ") || strings.HasPrefix(b, "\t")) {
 			// Withholding an opening line must not discard its sensitivity
 			// context: a following value may itself resemble a log envelope.
-			if _, value, sensitive := sensitiveValue(line); sensitive {
-				quote = openQuote(value)
-				block = strings.TrimSpace(value) == "" || multilineSecret.MatchString(line)
-			}
+			block = nextBlock
 			withhold(i)
 			continue
 		}
@@ -168,10 +203,10 @@ func (s *Sanitizer) text(input string, strictBoundary bool, depth int, report *R
 			lines[i] = s.plain(line[:start], report) + string(clean)
 			continue
 		}
-		if at, value, sensitive := sensitiveValue(line); sensitive {
-			quote = openQuote(value)
-			block = strings.TrimSpace(value) == "" || multilineSecret.MatchString(line)
-			if quote != "" || block || structuredFragment.MatchString(line) {
+		if at, _, sensitive := sensitiveValue(line); sensitive {
+			block = nextBlock
+			quotedKey := at > 0 && strings.ContainsAny(line[at-1:at], `"'`)
+			if block || quotedKey || structuredFragment.MatchString(line) {
 				withhold(i)
 			} else {
 				// Preserve a harmless diagnostic prefix for ordinary assignments.

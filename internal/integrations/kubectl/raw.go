@@ -63,11 +63,14 @@ func rawArgs(k config.Kubectl, in RawInput) ([]string, error) {
 		rest := strings.Split(strings.TrimPrefix(u.Path, prefix), "/")
 		input := GetInput{Resource: resource.Name}
 		if !resource.ClusterScoped {
-			if len(rest) < 3 || rest[0] != "namespaces" {
+			if len(rest) == 1 {
+				input.AllNamespaces = true
+			} else if len(rest) >= 3 && rest[0] == "namespaces" {
+				input.Namespace = rest[1]
+				rest = rest[2:]
+			} else {
 				continue
 			}
-			input.Namespace = rest[1]
-			rest = rest[2:]
 		}
 		if len(rest) < 1 || rest[0] != strings.SplitN(resource.Name, ".", 2)[0] || len(rest) > 2 {
 			continue

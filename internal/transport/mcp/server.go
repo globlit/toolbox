@@ -42,7 +42,7 @@ func New(service *kubectl.Service) *mcp.Server {
 		out, err := service.ResourceCatalog(in)
 		return nil, out, err
 	})
-	mcp.AddTool(s, &mcp.Tool{Name: "kubectl_get", OutputSchema: resultSchema, Description: "Read a permitted resource as sanitized JSON. Omit name to list objects. Use all_namespaces for approved namespaces only. Secrets, ConfigMaps, arbitrary flags, and raw paths are rejected.", Annotations: annotation}, func(ctx context.Context, req *mcp.CallToolRequest, in kubectl.GetInput) (*mcp.CallToolResult, kubectl.Result, error) {
+	mcp.AddTool(s, &mcp.Tool{Name: "kubectl_get", OutputSchema: resultSchema, Description: "Read a permitted resource as sanitized JSON. Omit name to list objects. Use all_namespaces for approved namespaces only. Secrets, arbitrary flags, and raw paths are rejected.", Annotations: annotation}, func(ctx context.Context, req *mcp.CallToolRequest, in kubectl.GetInput) (*mcp.CallToolResult, kubectl.Result, error) {
 		out, err := service.Get(ctx, in)
 		return toolResult(out), out, err
 	})

@@ -17,7 +17,7 @@ func settings() config.Kubectl {
 }
 
 func TestGetPolicy(t *testing.T) {
-	for _, r := range []string{"secrets", "secret", "configmaps", "all", "pods/secrets", "pods,secret", "/api/v1/secrets", "pods/status", "pods/exec", "pods/proxy", "--raw=/api/v1/secrets", "pods;delete", "pods\nsecrets", "roles.rbac.authorization.k8s.io", "nodes"} {
+	for _, r := range []string{"secrets", "secret", "all", "pods/secrets", "pods,secret", "/api/v1/secrets", "pods/status", "pods/exec", "pods/proxy", "--raw=/api/v1/secrets", "pods;delete", "pods\nsecrets", "roles.rbac.authorization.k8s.io", "nodes"} {
 		t.Run(r, func(t *testing.T) {
 			if _, err := getArgs(settings(), GetInput{Resource: r}); err == nil {
 				t.Fatal("unsafe resource accepted")
