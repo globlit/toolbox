@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"toolbox/internal/config"
-	"toolbox/internal/provision"
+	"github.com/globlit/toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/provision"
 )
 
 func BuildGateway(t testing.TB, c config.Config) (binary, configPath string) {

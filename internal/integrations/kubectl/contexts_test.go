@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"toolbox/internal/runner"
-	"toolbox/internal/testutil"
+	"github.com/globlit/toolbox/internal/runner"
+	"github.com/globlit/toolbox/internal/testutil"
 )
 
 type executorFunc func(context.Context, []string) (runner.Result, error)

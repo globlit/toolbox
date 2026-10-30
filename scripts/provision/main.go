@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"toolbox/internal/provision"
+	"github.com/globlit/toolbox/internal/provision"
 )
 
 func main() {

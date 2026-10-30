@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/config"
 )
 
 func Hook() {

@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"path/filepath"
 
+	"github.com/globlit/toolbox/internal/config"
 	"go.yaml.in/yaml/v3"
-	"toolbox/internal/config"
 )
 
 // Strict decoding rejects exec, auth-provider, impersonation, proxy-url,

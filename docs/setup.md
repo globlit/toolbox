@@ -4,7 +4,7 @@ Use an existing read-only kubeconfig with Toolbox. Toolbox does not create Kuber
 
 ## Prerequisites
 
-- Go 1.26.10 or newer on the build host.
+- Installed Toolbox executable, or Go 1.26.10 or newer to build from source.
 - Native kubectl executable on the runtime host.
 - Existing kubeconfig with a static bearer token or client certificate/key pair.
 - Read access to the target resources through Kubernetes role-based access control (RBAC).
@@ -145,9 +145,9 @@ Multiple configured contexts require explicit selection. One configured context 
 
 `-o json` / `--output=json` accepts the existing sanitized result envelope, including `data`, `context`, and redaction counts. Other output formats remain unsupported. MCP already returns JSON.
 
-## 4. Build and verify
+## 4. Install and verify
 
-Create the output directory, then build from this checkout:
+Use [Go installation or a verified release binary](install.md). To build from source instead, create the output directory and run:
 
 ```sh
 go build -o /opt/toolbox/bin/toolbox ./cmd/toolbox

@@ -10,12 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"toolbox/internal/config"
-	"toolbox/internal/integrations/kubectl"
-	transport "toolbox/internal/transport/mcp"
+	"github.com/globlit/toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/integrations/kubectl"
+	transport "github.com/globlit/toolbox/internal/transport/mcp"
+	"github.com/globlit/toolbox/internal/version"
 )
 
-const Help = `toolbox 0.3.0 - Kubernetes reads and port forwarding
+var Help = `toolbox ` + version.Current() + ` - Kubernetes reads and port forwarding
 
 Usage: toolbox [--config FILE] COMMAND
   toolbox mcp
@@ -290,7 +291,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, load func
 		return 0
 	}
 	if len(args) == 1 && args[0] == "version" {
-		fmt.Fprintln(stdout, "toolbox 0.3.0")
+		fmt.Fprintln(stdout, "toolbox "+version.Current())
 		return 0
 	}
 	r, err := parse(args)

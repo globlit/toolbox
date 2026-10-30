@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/config"
 )
 
 func Build(ctx context.Context, sourceRoot, configPath, output string) error {
@@ -54,7 +54,7 @@ func Build(ctx context.Context, sourceRoot, configPath, output string) error {
 		return errors.New("cannot hash the approved kubectl executable")
 	}
 	digest := sha256.Sum256(b)
-	flags := `-s -w -X "toolbox/internal/config.pinnedPath=` + configPath + `" -X toolbox/internal/config.pinnedSHA256=` + hex.EncodeToString(digest[:]) + ` -X toolbox/internal/config.pinnedBinarySHA256=` + hex.EncodeToString(h.Sum(nil))
+	flags := `-s -w -X "github.com/globlit/toolbox/internal/config.pinnedPath=` + configPath + `" -X github.com/globlit/toolbox/internal/config.pinnedSHA256=` + hex.EncodeToString(digest[:]) + ` -X github.com/globlit/toolbox/internal/config.pinnedBinarySHA256=` + hex.EncodeToString(h.Sum(nil))
 	cmd := exec.CommandContext(ctx, "go", "build", "-p=2", "-trimpath", "-ldflags="+flags, "-o", output, "./cmd/toolbox")
 	cmd.Dir = sourceRoot
 	// Operator build environment; none of it selects runtime trust anchors.

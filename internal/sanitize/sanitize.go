@@ -14,7 +14,7 @@ import (
 	"strings"
 	"unicode"
 
-	"toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/config"
 )
 
 const Marker = "[REDACTED]"

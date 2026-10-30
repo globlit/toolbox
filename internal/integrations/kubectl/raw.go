@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/config"
 )
 
 type RawInput struct {

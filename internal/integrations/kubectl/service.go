@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"toolbox/internal/config"
-	"toolbox/internal/runner"
-	"toolbox/internal/sanitize"
+	"github.com/globlit/toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/runner"
+	"github.com/globlit/toolbox/internal/sanitize"
 )
 
 type executor interface {

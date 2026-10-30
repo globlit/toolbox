@@ -3,7 +3,8 @@
 Toolbox exposes the same Kubernetes service through its command-line interface (CLI) and Model Context Protocol (MCP) server.
 
 ```text
-cmd/toolbox/                    process entry point
+main.go                         go install entry point
+cmd/toolbox/                    compatible command entry point
 internal/cli/                   CLI parsing and JSON output
 internal/transport/mcp/         MCP schemas and handlers
 internal/integrations/kubectl/  catalog, request policy, credential loading
@@ -14,7 +15,8 @@ internal/provision/             operator build package
 internal/testutil/              test fixtures
 config/                        operator templates
 deploy/kubernetes/             permission examples
-scripts/build/                 six unprovisioned platform builds
+scripts/build/                 six platform builds and checksums
+scripts/release/               stable release version selection
 scripts/provision/             operator build command
 docs/                          setup, examples, security
 ```
@@ -45,4 +47,4 @@ Reuse the sanitizer and runner. Provide GitLab-specific credential isolation and
 
 Require denial tests, redaction fixtures, and read-scoped credentials for each integration. No glab execution is implemented.
 
-The module name is `toolbox`. Update the module declaration and internal imports together when selecting a repository URL.
+The module path is `github.com/globlit/toolbox`. The root command supports versioned `go install`. CLI and MCP version output use release build metadata. Read [release automation](install.md#release-automation).

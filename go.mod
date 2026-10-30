@@ -1,4 +1,4 @@
-module toolbox
+module github.com/globlit/toolbox
 
 go 1.26.10
 

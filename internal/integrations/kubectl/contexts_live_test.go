@@ -13,7 +13,7 @@ import (
 	"sync"
 	"testing"
 
-	"toolbox/internal/testutil"
+	"github.com/globlit/toolbox/internal/testutil"
 )
 
 func TestRealKubectlContextsAndApprovedNamespaces(t *testing.T) {

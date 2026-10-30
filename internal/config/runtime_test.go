@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"toolbox/internal/config"
-	"toolbox/internal/testutil"
+	"github.com/globlit/toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/testutil"
 )
 
 func TestRuntimeConfigLoadsExplicitFile(t *testing.T) {

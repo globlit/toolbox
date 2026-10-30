@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/config"
 )
 
 func TestAuditF1F4FragmentsFailClosedPerLine(t *testing.T) {

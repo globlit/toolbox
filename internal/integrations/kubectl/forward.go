@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"toolbox/internal/config"
-	"toolbox/internal/runner"
+	"github.com/globlit/toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/runner"
 )
 
 type ForwardInput struct {

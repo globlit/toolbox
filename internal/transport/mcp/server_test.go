@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/globlit/toolbox/internal/integrations/kubectl"
+	"github.com/globlit/toolbox/internal/testutil"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"toolbox/internal/integrations/kubectl"
-	"toolbox/internal/testutil"
 )
 
 func init() { testutil.Hook() }

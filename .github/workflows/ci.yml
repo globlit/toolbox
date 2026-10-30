@@ -10,22 +10,117 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
           cache: true
       - run: go mod verify
       - run: go vet ./...
       - run: go test -race ./...
-      - run: go build -trimpath ./cmd/toolbox
+      - run: go install .
+      - run: go run . version
       - if: matrix.os == 'ubuntu-latest'
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
   portable-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
       - run: go run ./scripts/build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: portable-development-builds
+          path: dist/*
+          if-no-files-found: error
+  release:
+    needs: [test, portable-build]
+    if: github.event_name == 'push' && github.repository == 'globlit/toolbox' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: stable-release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - name: Plan release
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin --tags
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/$DEFAULT_BRANCH")" ]]; then
+            echo 'Skip superseded commit.'
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version=$(go run ./scripts/release)
+          if gh release view "$version" --json isDraft > "$RUNNER_TEMP/toolbox-release-state.json"; then
+            if [[ "$(jq -r .isDraft "$RUNNER_TEMP/toolbox-release-state.json")" == false ]]; then
+              echo 'Release already published.'
+              echo 'publish=false' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo 'publish=true' >> "$GITHUB_OUTPUT"
+      - name: Build release binaries
+        if: steps.plan.outputs.publish == 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.plan.outputs.version }}
+        run: go run ./scripts/build -version "$RELEASE_VERSION"
+      - name: Install Cosign
+        if: steps.plan.outputs.publish == 'true'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.4
+      - name: Sign and verify checksums
+        if: steps.plan.outputs.publish == 'true'
+        env:
+          WORKFLOW_IDENTITY: https://github.com/${{ github.workflow_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum --strict -c SHA256SUMS
+          cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
+          cosign verify-blob --bundle SHA256SUMS.sigstore.json \
+            --certificate-identity "$WORKFLOW_IDENTITY" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS
+      - name: Publish verified release
+        if: steps.plan.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ steps.plan.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify "refs/tags/$RELEASE_VERSION" >/dev/null 2>&1; then
+            test "$(git rev-parse "$RELEASE_VERSION^{commit}")" = "$GITHUB_SHA"
+          else
+            git tag "$RELEASE_VERSION" "$GITHUB_SHA"
+            git push origin "refs/tags/$RELEASE_VERSION"
+          fi
+          if gh release view "$RELEASE_VERSION" --json isDraft > "$RUNNER_TEMP/toolbox-release-state.json"; then
+            test "$(jq -r .isDraft "$RUNNER_TEMP/toolbox-release-state.json")" = true
+          else
+            gh release create "$RELEASE_VERSION" --verify-tag --draft \
+              --title "Toolbox $RELEASE_VERSION" --generate-notes
+          fi
+          gh release upload "$RELEASE_VERSION" dist/toolbox-* dist/VERSION \
+            dist/SHA256SUMS dist/SHA256SUMS.sigstore.json --clobber
+          gh release edit "$RELEASE_VERSION" --draft=false --latest

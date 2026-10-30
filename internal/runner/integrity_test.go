@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"toolbox/internal/testutil"
+	"github.com/globlit/toolbox/internal/testutil"
 )
 
 func TestD1ExecutableReplacementRejectedBeforeExecution(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/config"
 )
 
 type ContextInput struct {

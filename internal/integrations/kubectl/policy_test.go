@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"toolbox/internal/config"
-	"toolbox/internal/runner"
-	"toolbox/internal/sanitize"
-	"toolbox/internal/testutil"
+	"github.com/globlit/toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/runner"
+	"github.com/globlit/toolbox/internal/sanitize"
+	"github.com/globlit/toolbox/internal/testutil"
 )
 
 func init() { testutil.Hook() }

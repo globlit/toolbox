@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/globlit/toolbox/internal/testutil"
 	"io"
 	"net"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"toolbox/internal/testutil"
 )
 
 func TestRealKubectlForwardStartupAndExpiry(t *testing.T) {

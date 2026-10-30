@@ -2,28 +2,28 @@
 
 Toolbox gives artificial intelligence (AI) agents Kubernetes reads and optional port forwarding through a command-line interface (CLI) or the Model Context Protocol (MCP). It sanitizes resource data, logs, and error output. Native executables support Linux, macOS, and Windows.
 
-## Setup
+## Install
 
-Use Go 1.26.10 or newer to build Toolbox. Install kubectl separately.
-
-1. Follow [setup with an existing kubeconfig](docs/setup.md). Reuse the existing ServiceAccount, Role, and RoleBinding when they provide the required access.
-2. Configure the kubectl path, kubeconfig path, contexts, and namespaces.
-3. Build Toolbox from this checkout:
+Use Go 1.26.10 or newer:
 
 ```sh
-go build -o ./toolbox ./cmd/toolbox
+go install github.com/globlit/toolbox@latest
+# Or select a published version:
+go install github.com/globlit/toolbox@v0.4.0
 ```
 
-Pass the configuration with `--config FILE`. Toolbox trusts that file's author. Environment variables cannot select configuration. [Operator builds](docs/setup.md#optional-built-in-default) can provide a default configuration.
+Or download a [release binary](https://github.com/globlit/toolbox/releases/latest) for Linux, macOS/Darwin, or Windows on ARM64 or x86-64. Releases include SHA-256 checksums and a Cosign signature bundle. Follow [installation and signature verification](docs/install.md) before running a downloaded binary.
+
+Public installation requires the first release from the new workflow. Install kubectl separately. Follow [setup with an existing kubeconfig](docs/setup.md), then pass `--config FILE`. Toolbox trusts the configuration author. Environment variables cannot select configuration.
 
 ## Usage
 
 Run the executable with your configuration. Replace `prod-a`, `apps`, and `api` with your context, namespace, and service names. Enable forwarding before starting a tunnel:
 
 ```sh
-./toolbox --config /etc/toolbox/toolbox.json kubectl get pods --context prod-a -A -o json
-./toolbox --config /etc/toolbox/toolbox.json kubectl port-forward service/api 18080:80 --context prod-a -n apps --duration 1m
-./toolbox --config /etc/toolbox/toolbox.json mcp
+toolbox --config /etc/toolbox/toolbox.json kubectl get pods --context prod-a -A -o json
+toolbox --config /etc/toolbox/toolbox.json kubectl port-forward service/api 18080:80 --context prod-a -n apps --duration 1m
+toolbox --config /etc/toolbox/toolbox.json mcp
 ```
 
 Use `-A` for all approved namespaces. Read [context selection](docs/contexts.md) and [raw GET and port-forward usage](docs/raw-and-port-forward.md).
@@ -50,6 +50,7 @@ Use a read-only Kubernetes identity. Protect credentials from direct agent acces
 
 ## Reference
 
+- [Installation, checksums, and Cosign verification](docs/install.md)
 - [Setup and credential rotation](docs/setup.md)
 - [Context selection](docs/contexts.md)
 - [Port forwarding](docs/raw-and-port-forward.md#enable-tunnels)

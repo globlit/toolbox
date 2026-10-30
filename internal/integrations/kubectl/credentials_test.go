@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"toolbox/internal/testutil"
+	"github.com/globlit/toolbox/internal/testutil"
 )
 
 func TestCredentialSnapshot(t *testing.T) {

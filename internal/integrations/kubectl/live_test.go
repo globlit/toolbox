@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"toolbox/internal/testutil"
+	"github.com/globlit/toolbox/internal/testutil"
 )
 
 // Opt-in test uses a real kubectl against an ephemeral TLS API, never a cluster.

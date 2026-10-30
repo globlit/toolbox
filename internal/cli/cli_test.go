@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/globlit/toolbox/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"toolbox/internal/config"
 
-	"toolbox/internal/testutil"
+	"github.com/globlit/toolbox/internal/testutil"
 )
 
 func init() { testutil.Hook() }

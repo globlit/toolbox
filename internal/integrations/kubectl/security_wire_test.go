@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/globlit/toolbox/internal/testutil"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"toolbox/internal/testutil"
 )
 
 func TestSecurityRegressionsOverCLIAndMCP(t *testing.T) {

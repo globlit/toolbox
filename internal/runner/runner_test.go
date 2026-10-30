@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"toolbox/internal/testutil"
+	"github.com/globlit/toolbox/internal/testutil"
 )
 
 func init() { testutil.Hook() }

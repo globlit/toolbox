@@ -2,11 +2,11 @@ package kubectl
 
 import (
 	"context"
+	"github.com/globlit/toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/sanitize"
+	"github.com/globlit/toolbox/internal/testutil"
 	"strings"
 	"testing"
-	"toolbox/internal/config"
-	"toolbox/internal/sanitize"
-	"toolbox/internal/testutil"
 )
 
 func TestRawPolicy(t *testing.T) {

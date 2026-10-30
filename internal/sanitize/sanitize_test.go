@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/config"
 )
 
 func clean(t testing.TB) *Sanitizer {

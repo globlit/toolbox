@@ -3,13 +3,13 @@ package kubectl
 import (
 	"context"
 	"fmt"
+	"github.com/globlit/toolbox/internal/config"
+	"github.com/globlit/toolbox/internal/testutil"
 	"io"
 	"net"
 	"strings"
 	"testing"
 	"time"
-	"toolbox/internal/config"
-	"toolbox/internal/testutil"
 )
 
 func forwardSettings() config.Kubectl {
