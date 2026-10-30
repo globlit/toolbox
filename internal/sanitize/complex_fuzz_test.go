@@ -225,3 +225,46 @@ func FuzzArbitraryLogBytes(f *testing.F) {
 		}
 	})
 }
+
+func FuzzEmbeddedSource(f *testing.F) {
+	for language := uint8(0); language < 6; language++ {
+		f.Add([]byte("quotes\";\n$(printf ignored)"), language, uint8(0))
+		f.Add([]byte{0, 255, '\n'}, language, uint8(1))
+	}
+	s := unconfigured(f)
+	f.Fuzz(func(t *testing.T, data []byte, language, framing uint8) {
+		if len(data) > 2048 {
+			t.Skip()
+		}
+		value := jsonQuote(syntheticSecret + " " + string(data))
+		sources := []string{
+			"package main\nfunc main() { password := " + value + "; println(password) }",
+			"password = " + value + "\nprint(password)",
+			"const password = " + value + ";\nconsole.log(password);",
+			"SELECT * FROM credentials WHERE password = " + value + ";",
+			"password=" + value + "; printf '%s' \"$password\"",
+			"<?php $password = " + value + "; echo $password; ?>",
+		}
+		input := safeBefore + "\n" + sources[int(language)%len(sources)] + "\n" + safeAfter + "\n"
+		var out string
+		if framing%2 == 0 {
+			out, _ = s.Text([]byte(input))
+		} else {
+			b, _ := json.Marshal(map[string]string{"level": "error", "message": input})
+			encoded, _, err := s.JSON(b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertSecretAbsent(t, string(encoded))
+			var record map[string]string
+			if err := json.Unmarshal(encoded, &record); err != nil {
+				t.Fatal(err)
+			}
+			out = record["message"]
+		}
+		assertSecretAbsent(t, out)
+		if !strings.HasPrefix(out, safeBefore+"\n") || !strings.HasSuffix(out, safeAfter+"\n") {
+			t.Fatal("source snippet affected independent records", out)
+		}
+	})
+}

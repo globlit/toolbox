@@ -12,7 +12,7 @@ import (
 
 const Withheld = "[WITHHELD: ambiguous log fragment]"
 
-var assignment = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([A-Za-z_][A-Za-z0-9_.-]*))\s*[:=]\s*`)
+var assignment = regexp.MustCompile(`(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([A-Za-z_][A-Za-z0-9_.-]*))\s*[:=]\s*`)
 var timestamp = regexp.MustCompile(`^(?:\d{4}-\d{2}-\d{2}[T ][0-9:.]+(?:Z|[+-]\d{2}:\d{2})?|\[\d{4}[-/]\d{2}[-/]\d{2}[ T][0-9:.]+(?:Z|[+-]\d{2}:\d{2})?\])[ \t]`)
 var level = regexp.MustCompile(`(?i)^(?:\[(?:trace|debug|info|warn|warning|error|fatal|critical)\]|(?:trace|debug|info|warn|warning|error|fatal|critical)\b)[ :\t]+`)
 var logfmtEnvelope = regexp.MustCompile(`(?:^|\s)(?:level|severity|ts|timestamp|logger|msg|message)=`)
